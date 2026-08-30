@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager};
 
 mod ai;
 mod content;
+mod schedule;
 mod security;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -374,7 +375,13 @@ pub fn run() {
             content::save_content,
             content::delete_content,
             content::update_content_status,
-            ai::generate_content
+            ai::generate_content,
+            schedule::list_schedule,
+            schedule::get_schedule,
+            schedule::create_schedule,
+            schedule::delete_schedule,
+            schedule::update_schedule_status,
+            schedule::reschedule
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowPost AI");

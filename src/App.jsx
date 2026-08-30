@@ -278,6 +278,64 @@ function AiContentPage() {
   </section>
 }
 
+function ScheduleModal({ contentId, onClose, onCreated }) {
+  const [scheduledAt, setScheduledAt] = useState('')
+  const [platform, setPlatform] = useState('Sống Tích Cực')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [warn, setWarn] = useState('')
+
+  const checkConflict = async () => {
+    if (!scheduledAt || !platform) return ''
+    try {
+      const list = await invokeDesktop('list_schedule')
+      const target = new Date(scheduledAt).getTime()
+      const conflict = list.find(s => s.platform === platform && s.status === 'Scheduled' && Math.abs(new Date(s.scheduledAt).getTime() - target) < 30*60*1000)
+      if (conflict) return `Cảnh báo: Trùng lịch với "${conflict.platform}" lúc ${new Date(conflict.scheduledAt).toLocaleString('vi-VN')} (cách <30 phút). Bạn có thể vẫn đăng trùng nếu chấp nhận.`
+      return ''
+    } catch { return '' }
+  }
+
+  const handleSchedule = async (ignoreWarn) => {
+    if (!contentId) { setErr('Thiếu contentId'); return }
+    if (!scheduledAt) { setErr('Vui lòng chọn thời gian'); return }
+    if (!ignoreWarn) {
+      const w = await checkConflict()
+      if (w) { setWarn(w); return }
+    }
+    setBusy(true); setErr(''); setWarn('')
+    try {
+      const iso = new Date(scheduledAt).toISOString()
+      await invokeDesktop('create_schedule', { payload: { contentId, scheduledAt: iso, platform, pages: [platform] } })
+      onCreated && onCreated()
+      onClose()
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  return <div style={{position:'fixed', inset:0, background:'#0006', display:'grid', placeItems:'center', zIndex:50}} onClick={onClose}>
+    <div className="panel" style={{width:420, padding:18, display:'flex', flexDirection:'column', gap:12}} onClick={e=>e.stopPropagation()}>
+      <h2 style={{margin:0, fontSize:16}}>Lên lịch đăng</h2>
+      <div>
+        <label style={{fontSize:12, fontWeight:700}}>Thời gian</label>
+        <input type="datetime-local" value={scheduledAt} onChange={e=>{setScheduledAt(e.target.value); setWarn('')}} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}/>
+        <div style={{fontSize:10, color:'#888', marginTop:4}}>Phải trong tương lai, tối thiểu 5 phút.</div>
+      </div>
+      <div>
+        <label style={{fontSize:12, fontWeight:700}}>Nền tảng</label>
+        <select value={platform} onChange={e=>setPlatform(e.target.value)} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
+          <option>Sống Tích Cực</option><option>Daily Motivation</option><option>Chill Mỗi Ngày</option>
+        </select>
+      </div>
+      {warn && <div className="error-box" style={{background:'#fff3cd', borderColor:'#ffc107', color:'#664d03'}}>{warn}<div style={{marginTop:8, display:'flex', gap:8}}><button className="outline" onClick={()=>setWarn('')} style={{height:30}}>Hủy</button><button className="primary" onClick={()=>handleSchedule(true)} style={{height:30}}>Vẫn đăng trùng</button></div></div>}
+      {err && <div className="error-box">{err}</div>}
+      <div style={{display:'flex', justifyContent:'flex-end', gap:8}}>
+        <button className="outline" onClick={onClose} disabled={busy} style={{height:36}}>Đóng</button>
+        <button className="primary" onClick={()=>handleSchedule(false)} disabled={busy} style={{height:36}}><CalendarDays size={14}/> Xác nhận</button>
+      </div>
+    </div>
+  </div>
+}
+
 function ContentWarehousePage() {
   const desktop = isDesktop()
   const [items, setItems] = useState([])
@@ -285,6 +343,7 @@ function ContentWarehousePage() {
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [scheduleFor, setScheduleFor] = useState(null)
 
   const refresh = async () => {
     if (!desktop) return
@@ -337,12 +396,152 @@ function ContentWarehousePage() {
       <strong style={{fontSize:13, lineHeight:1.4}}>{it.title}</strong>
       <span style={{fontSize:11, color:'#555', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{it.body}</span>
       <span style={{fontSize:10, color:'#888'}}>Prompt: {it.prompt} • {formatDate(it.createdAt)} • {it.mediaIds?.length || 0} media</span>
-      <div style={{display:'flex', gap:8, marginTop:4}}>
+      <div style={{display:'flex', gap:8, marginTop:4, flexWrap:'wrap'}}>
         <button className="outline" onClick={()=>approve(it.id)} disabled={it.status==='Approved' || busy} style={{height:30, fontSize:11}}><CircleCheck size={12}/> Duyệt</button>
+        <button className="primary" onClick={()=>setScheduleFor(it.id)} disabled={it.status!=='Approved' || busy} title={it.status!=='Approved' ? 'Hãy duyệt trước' : ''} style={{height:30, fontSize:11}}><CalendarDays size={12}/> Lên lịch</button>
         <button className="outline" onClick={()=>remove(it.id)} disabled={busy} style={{height:30, fontSize:11}}><Trash2 size={12}/> Xóa</button>
       </div>
     </article>)}</div> : <div className="media-empty"><div><FileText size={34}/></div><h2>{items.length===0 ? 'Kho nội dung đang trống' : 'Không có kết quả'}</h2><p>{items.length===0 ? 'Hãy tạo nội dung ở AI Content và Lưu vào kho.' : 'Thử đổi bộ lọc hoặc từ khóa.'}</p></div>}
+    {scheduleFor && <ScheduleModal contentId={scheduleFor} onClose={()=>setScheduleFor(null)} onCreated={refresh} />}
   </section>
+}
+
+function SchedulePage() {
+  const desktop = isDesktop()
+  const [schedules, setSchedules] = useState([])
+  const [contents, setContents] = useState([])
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [month, setMonth] = useState(() => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
+  const [tab, setTab] = useState('Calendar')
+
+  const refresh = async () => {
+    if (!desktop) return
+    setBusy(true)
+    try {
+      const [s, c] = await Promise.all([invokeDesktop('list_schedule'), invokeDesktop('list_content')])
+      setSchedules(s); setContents(c); setErr('')
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!desktop) return
+    const id = setInterval(refresh, 4000)
+    return () => clearInterval(id)
+  }, [desktop]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const deleteItem = async (id) => {
+    if (!window.confirm('Xóa lịch này?')) return
+    try { await invokeDesktop('delete_schedule', { id }); await refresh() } catch (e) { setErr(String(e)) }
+  }
+
+  const contentMap = new Map(contents.map(c => [c.id, c]))
+
+  const daysInMonth = () => {
+    const y = month.getFullYear(), m = month.getMonth()
+    const firstDay = new Date(y, m, 1).getDay() // 0 Sun
+    const startOffset = (firstDay + 6) % 7 // Mon=0
+    const days = new Date(y, m+1, 0).getDate()
+    const cells = []
+    for (let i=0;i<startOffset;i++) cells.push(null)
+    for (let d=1; d<=days; d++) cells.push(new Date(y, m, d))
+    return cells
+  }
+  const cells = daysInMonth()
+  const isToday = (d) => { if(!d) return false; const t=new Date(); return d.getDate()===t.getDate() && d.getMonth()===t.getMonth() && d.getFullYear()===t.getFullYear() }
+  const schedulesForDay = (d) => {
+    if (!d) return []
+    return schedules.filter(s => {
+      const sd = new Date(s.scheduledAt)
+      return sd.getDate()===d.getDate() && sd.getMonth()===d.getMonth() && sd.getFullYear()===d.getFullYear()
+    })
+  }
+
+  const formatTime = (iso) => new Intl.DateTimeFormat('vi-VN', { hour:'2-digit', minute:'2-digit'}).format(new Date(iso))
+  const formatFull = (iso) => new Intl.DateTimeFormat('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).format(new Date(iso))
+
+  return <section className="media-page">
+    <div className="page-heading"><div><p>LỊCH NỘI DUNG</p><h1>Lịch nội dung</h1><span>Lịch đăng theo tháng và hàng đợi · Cảnh báo trùng &lt;30 phút nhưng cho phép đăng trùng nếu chấp nhận.</span></div><div className="media-actions"><button className="outline" onClick={refresh} disabled={!desktop || busy}><RefreshCw size={16}/> Làm mới</button></div></div>
+    {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chỉ bản Tauri mới đọc được lịch.</span></div></div>}
+    {err && <div className="error-box">{err}</div>}
+    <div style={{display:'flex', gap:8, marginBottom:14}}>
+      <button className={tab==='Calendar'?'primary':'outline'} onClick={()=>setTab('Calendar')} style={{height:32}}><CalendarDays size={14}/> Lịch tháng</button>
+      <button className={tab==='Queue'?'primary':'outline'} onClick={()=>setTab('Queue')} style={{height:32}}><Clock3 size={14}/> Hàng đợi ({schedules.length})</button>
+    </div>
+    {tab==='Calendar' ? <>
+      <div className="panel" style={{padding:14, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <button className="outline" onClick={()=>setMonth(new Date(month.getFullYear(), month.getMonth()-1, 1))} style={{height:32}}>‹ Tháng trước</button>
+        <strong style={{fontSize:15}}>Tháng {month.getMonth()+1}/{month.getFullYear()}</strong>
+        <button className="outline" onClick={()=>setMonth(new Date(month.getFullYear(), month.getMonth()+1, 1))} style={{height:32}}>Tháng sau ›</button>
+      </div>
+      <div className="panel" style={{padding:12, marginTop:12}}>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:8, fontSize:11, fontWeight:700, color:'#777', marginBottom:8}}>
+          <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+        </div>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:8}}>
+          {cells.map((d, idx) => {
+            const list = schedulesForDay(d)
+            const today = isToday(d)
+            return <div key={idx} className="day-cell" style={{minHeight:92, border: today ? '2px solid #6558d6' : '1px solid #e9e9ee', borderRadius:10, padding:8, background: d ? (today ? '#f7f6fe' : '#fff') : '#f9f9f9'}}>
+              {d && <><div style={{fontSize:12, fontWeight: today ? 800 : 600, color: today ? '#6558d6' : '#333'}}>{d.getDate()}</div>
+              <div style={{marginTop:6, display:'flex', flexDirection:'column', gap:4}}>
+                {list.slice(0,3).map(s => {
+                  const c = contentMap.get(s.contentId)
+                  return <span key={s.id} style={{fontSize:9, background: s.platform==='Sống Tích Cực' ? '#efedff' : s.platform==='Daily Motivation' ? '#fff3e0' : '#e8f5e9', color:'#333', padding:'2px 6px', borderRadius:6, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{formatTime(s.scheduledAt)} {c ? c.title.slice(0,18) : s.contentId.slice(0,6)}</span>
+                })}
+                {list.length>3 && <span style={{fontSize:9, color:'#777'}}>+{list.length-3} nữa</span>}
+                {list.length===0 && <span style={{fontSize:9, color:'#bbb'}}>—</span>}
+              </div></>}
+            </div>
+          })}
+        </div>
+      </div>
+    </> : <div className="panel" style={{padding:0, overflow:'hidden'}}>
+      <div style={{padding:'12px 14px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
+        <strong style={{fontSize:13}}>Hàng đợi ({schedules.length})</strong><span style={{fontSize:11, color:'#777'}}>Sắp xếp theo thời gian</span>
+      </div>
+      {schedules.length ? <div className="table-wrap"><table><thead><tr><th>THỜI GIAN</th><th>NỘI DUNG</th><th>TRANG</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>{schedules.map(s => {
+        const c = contentMap.get(s.contentId)
+        return <tr key={s.id}><td>{formatFull(s.scheduledAt)}</td><td><strong style={{fontSize:12}}>{c ? c.title : s.contentId}</strong><div style={{fontSize:10, color:'#777'}}>{c ? c.prompt.slice(0,40) : ''}</div></td><td><span style={{fontSize:11, background:'#f0eefc', padding:'3px 7px', borderRadius:10}}>{s.platform}</span></td><td><span style={{fontSize:10, padding:'3px 7px', borderRadius:10, background: s.status==='Scheduled' ? '#fff3cd' : s.status==='Published' ? '#e8f5e9' : '#fdecea', color: s.status==='Scheduled' ? '#664d03' : s.status==='Published' ? '#2e7d32' : '#611a15'}}>{s.status}</span></td><td><button className="outline" onClick={()=>deleteItem(s.id)} style={{height:28, fontSize:11}}><Trash2 size={12}/> Xóa</button></td></tr>
+      })}</tbody></table></div> : <div className="media-empty" style={{padding:30}}><div><CalendarDays size={34}/></div><h2>Chưa có lịch nào</h2><p>Hãy duyệt nội dung ở Kho và bấm Lên lịch.</p></div>}
+    </div>}
+  </section>
+}
+
+function DashboardSchedulePanel({ onViewAll }) {
+  const desktop = isDesktop()
+  const [todaySchedules, setTodaySchedules] = useState([])
+  const [contentMap, setContentMap] = useState(new Map())
+  useEffect(() => {
+    if (!desktop) return
+    const load = async () => {
+      try {
+        const [s, c] = await Promise.all([invokeDesktop('list_schedule'), invokeDesktop('list_content')])
+        const todayStr = new Date().toDateString()
+        const todayList = s.filter(x => new Date(x.scheduledAt).toDateString() === todayStr && x.status === 'Scheduled').sort((a,b)=> new Date(a.scheduledAt) - new Date(b.scheduledAt)).slice(0,3)
+        setTodaySchedules(todayList)
+        setContentMap(new Map(c.map(x=>[x.id, x])))
+      } catch { /* ignore */ }
+    }
+    load()
+    const id = setInterval(load, 4000)
+    return () => clearInterval(id)
+  }, [desktop])
+  const formatTime = (iso) => new Intl.DateTimeFormat('vi-VN', { hour:'2-digit', minute:'2-digit'}).format(new Date(iso))
+  const dotColor = (platform) => platform==='Sống Tích Cực' ? 'purple-dot' : platform==='Daily Motivation' ? 'orange-dot' : 'green-dot'
+  return <div className="panel schedule-panel">
+    <div className="panel-head"><div><h2>Lịch sắp tới</h2><p>{todaySchedules.length} tác vụ trong hôm nay</p></div><button onClick={onViewAll}><MoreHorizontal size={20}/></button></div>
+    <div className="timeline">
+      {todaySchedules.length ? todaySchedules.map(s => {
+        const c = contentMap.get(s.contentId)
+        return <div className="task" key={s.id}><time>{formatTime(s.scheduledAt)}</time><i className={`dot ${dotColor(s.platform)}`}/><div><strong>{c ? c.title.slice(0,28) : s.contentId.slice(0,8)}</strong><span>{s.platform} • {c ? c.style : s.contentId}</span><small><Send size={12}/> Đã lên lịch</small></div></div>
+      }) : <>
+        <div className="task"><time>10:00</time><i className="dot purple-dot"/><div><strong>Chưa có lịch hôm nay</strong><span>Hãy tạo lịch từ Kho nội dung</span><small><CalendarDays size={12}/> Trống</small></div></div>
+      </>}
+    </div>
+    <button className="schedule-link" onClick={onViewAll}>Xem tất cả lịch <span>→</span></button>
+  </div>
 }
 
 function App() {
@@ -378,8 +577,8 @@ function App() {
     <main>
       <header><div className="search"><Search size={18}/><input aria-label="Tìm kiếm" placeholder="Tìm kiếm nội dung, bài viết..."/><kbd>⌘ K</kbd></div><div className="head-actions"><button className="bell" aria-label="Thông báo"><Bell size={20}/><i/></button><button className="primary" onClick={createPost}><Plus size={19}/> Tạo nội dung mới</button></div></header>
       <div className="content">
-        {active === 'AI Content' ? <AiContentPage/> : active === 'Kho nội dung' ? <ContentWarehousePage/> : active === 'Thư viện media' ? <MediaLibrary/> : active === 'Cài đặt' ? <SettingsPage/> : <>
-        <section className="welcome"><div><p>{today}</p><h1>Chào buổi sáng, An! <span>👋</span></h1><div className="welcome-sub">Hôm nay bạn có <b>3 bài viết</b> đang chờ được đăng.</div></div><button className="outline"><CalendarDays size={17}/> Xem lịch nội dung</button></section>
+        {active === 'AI Content' ? <AiContentPage/> : active === 'Kho nội dung' ? <ContentWarehousePage/> : active === 'Thư viện media' ? <MediaLibrary/> : active === 'Lịch nội dung' ? <SchedulePage/> : active === 'Cài đặt' ? <SettingsPage/> : <>
+        <section className="welcome"><div><p>{today}</p><h1>Chào buổi sáng, An! <span>👋</span></h1><div className="welcome-sub">Hôm nay bạn có <b>3 bài viết</b> đang chờ được đăng.</div></div><button className="outline" onClick={()=>setActive('Lịch nội dung')}><CalendarDays size={17}/> Xem lịch nội dung</button></section>
 
         <section className="stats-grid">
           <StatCard icon={FileText} iconClass="purple" label="Bài viết tháng này" value="86" delta="12.5%" sub="so với tháng trước"/>
@@ -394,15 +593,7 @@ function App() {
             <div className="chart-total"><strong>5.660</strong><span><TrendingUp size={13}/> 15.2%</span></div>
             <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chartData} margin={{top: 8, right: 8, left: -20, bottom: 0}}><defs><linearGradient id="colorEng" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6558d6" stopOpacity={0.25}/><stop offset="95%" stopColor="#6558d6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ececf2"/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:'#8c8b98', fontSize:12}}/><YAxis axisLine={false} tickLine={false} tick={{fill:'#aaa9b3', fontSize:11}}/><Tooltip contentStyle={{border:'none', borderRadius:10, boxShadow:'0 8px 30px #2222'}}/><Area type="monotone" dataKey="engagement" stroke="#6558d6" strokeWidth={2.5} fill="url(#colorEng)"/></AreaChart></ResponsiveContainer></div>
           </div>
-          <div className="panel schedule-panel">
-            <div className="panel-head"><div><h2>Lịch sắp tới</h2><p>3 tác vụ trong hôm nay</p></div><button><MoreHorizontal size={20}/></button></div>
-            <div className="timeline">
-              <div className="task"><time>10:00</time><i className="dot purple-dot"/><div><strong>AI viết nội dung</strong><span>Sống Tích Cực • Chủ đề: Lifestyle</span><small><Sparkles size={12}/> Tự động</small></div></div>
-              <div className="task"><time>14:30</time><i className="dot orange-dot"/><div><strong>Tạo hình ảnh</strong><span>Daily Motivation • 1 ảnh</span><small><Images size={12}/> AI Image</small></div></div>
-              <div className="task"><time>19:00</time><i className="dot green-dot"/><div><strong>Đăng bài Facebook</strong><span>3 trang • Văn bản + ảnh</span><small><Send size={12}/> Đã lên lịch</small></div></div>
-            </div>
-            <button className="schedule-link">Xem tất cả lịch <span>→</span></button>
-          </div>
+          <DashboardSchedulePanel onViewAll={()=>setActive('Lịch nội dung')} />
         </section>
 
         <section className="panel recent">

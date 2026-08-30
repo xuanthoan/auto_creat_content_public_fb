@@ -110,6 +110,16 @@ function SettingsPage() {
     try { await invokeDesktop('delete_facebook_token'); await refresh(); setMsg('Đã xóa Facebook Token') }
     catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
+  const checkFb = async () => {
+    if (!fbInput.trim() && !status.hasFacebookToken) { setErr('Vui lòng nhập token hoặc lưu trước khi kiểm tra'); return }
+    // For now, require input to validate
+    if (!fbInput.trim()) { setErr('Vui lòng dán token vào ô trên để kiểm tra'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      const me = await invokeDesktop('validate_facebook_token', { token: fbInput })
+      setMsg(`Token hợp lệ: ${me.name} (ID: ${me.id})`)
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
   const saveOmni = async () => {
     if (!omniInput.trim()) { setErr('Vui lòng nhập OmniRoute API Key'); return }
     setBusy(true); setErr(''); setMsg('')
@@ -135,6 +145,7 @@ function SettingsPage() {
         <div style={{display:'flex', gap:8}}>
           <input type="password" placeholder={status.hasFacebookToken ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập Facebook User/Page Access Token'} value={fbInput} onChange={e=>setFbInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
           <button className="primary" onClick={saveFb} disabled={!desktop || busy} style={{height:36}}><Zap size={14}/> Lưu</button>
+          <button className="outline" onClick={checkFb} disabled={!desktop || busy} style={{height:36}}><Search size={14}/> Kiểm tra</button>
           <button className="outline" onClick={deleteFb} disabled={!desktop || busy || !status.hasFacebookToken} style={{height:36}}><Trash2 size={14}/> Xóa</button>
         </div>
       </div>

@@ -8,6 +8,7 @@ use tauri::{AppHandle, Manager};
 
 mod ai;
 mod content;
+mod facebook;
 mod schedule;
 mod security;
 
@@ -381,7 +382,8 @@ pub fn run() {
             schedule::create_schedule,
             schedule::delete_schedule,
             schedule::update_schedule_status,
-            schedule::reschedule
+            schedule::reschedule,
+            facebook::validate_facebook_token
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowPost AI");

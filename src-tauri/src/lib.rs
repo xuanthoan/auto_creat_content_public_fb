@@ -6,6 +6,8 @@ use std::{
 };
 use tauri::{AppHandle, Manager};
 
+mod ai;
+mod content;
 mod security;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -366,7 +368,13 @@ pub fn run() {
             security::set_omniroute_key,
             security::get_omniroute_key,
             security::delete_omniroute_key,
-            security::credential_status
+            security::credential_status,
+            content::list_content,
+            content::get_content,
+            content::save_content,
+            content::delete_content,
+            content::update_content_status,
+            ai::generate_content
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowPost AI");

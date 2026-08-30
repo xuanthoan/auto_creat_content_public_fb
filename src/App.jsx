@@ -169,17 +169,205 @@ function SettingsStatus() {
   return <div className="token-box"><div className="token-title"><span><Zap size={14}/> Bảo mật</span><b style={{color: hasAny ? '#2e7d32' : '#d87642'}}>{hasAny ? 'Đã lưu' : 'Chưa lưu'}</b></div><div className="progress"><i style={{width: status.hasFacebookToken && status.hasOmnirouteKey ? '100%' : status.hasFacebookToken || status.hasOmnirouteKey ? '50%' : '0%', background: hasAny ? '#4caf50' : '#e4a263'}}/></div><p>{status.hasFacebookToken ? 'FB Token ●●●●' : 'FB Token chưa lưu'} • {status.hasOmnirouteKey ? 'Omni ●●●●' : 'Omni chưa lưu'}</p></div>
 }
 
+function AiContentPage() {
+  const desktop = isDesktop()
+  const [prompt, setPrompt] = useState('')
+  const [style, setStyle] = useState('Viral')
+  const [customStyle, setCustomStyle] = useState('')
+  const [length, setLength] = useState('Vừa')
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const [mediaIds, setMediaIds] = useState([])
+  const [mediaOptions, setMediaOptions] = useState([])
+  const [showPicker, setShowPicker] = useState(false)
+
+  const loadMediaOptions = async () => {
+    if (!desktop) return
+    try {
+      const list = await invokeDesktop('list_media')
+      const withUrls = await Promise.all(list.map(async item => ({ ...item, url: await localAssetUrl(item.path) })))
+      setMediaOptions(withUrls)
+    } catch (e) { setErr(String(e)) }
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { if (showPicker) loadMediaOptions() }, [showPicker]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const generate = async () => {
+    if (!prompt.trim()) { setErr('Vui lòng nhập prompt'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      const res = await invokeDesktop('generate_content', { payload: { prompt, style, customStyle: customStyle || null, length } })
+      setTitle(res.title || '')
+      setBody(res.body || '')
+      setMsg(res.isMock ? 'Đã tạo nội dung mock (demo Kho)' : 'Đã tạo nội dung')
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  const save = async () => {
+    if (!title.trim() && !body.trim()) { setErr('Tiêu đề hoặc nội dung không được để trống'); return }
+    if (!prompt.trim()) { setErr('Prompt không được để trống'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      await invokeDesktop('save_content', { payload: { title, body, prompt, style, customStyle: customStyle || null, mediaIds } })
+      setMsg('Đã lưu vào Kho nội dung')
+      setPrompt(''); setTitle(''); setBody(''); setMediaIds([])
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  const toggleMedia = (id) => setMediaIds(prev => prev.includes(id) ? prev.filter(x => x!==id) : [...prev, id])
+
+  return <section className="media-page">
+    <div className="page-heading"><div><p>AI CONTENT</p><h1>Tạo nội dung với AI</h1><span>Nhập prompt, chọn style, tạo mock để demo Kho trước khi nối OmniRoute thật.</span></div></div>
+    {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chức năng AI chỉ hoạt động trong bản Tauri.</span></div></div>}
+    {err && <div className="error-box">{err}</div>}
+    {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
+    <div className="panel" style={{padding:20, display:'flex', flexDirection:'column', gap:16}}>
+      <div>
+        <label style={{fontSize:12, fontWeight:700}}>Prompt *</label>
+        <textarea placeholder="VD: Bí quyết năng lượng buổi sáng cho dân văn phòng..." value={prompt} onChange={e=>setPrompt(e.target.value)} maxLength={500} disabled={!desktop || busy} style={{width:'100%', minHeight:90, border:'1px solid #e2e1e7', borderRadius:8, padding:12, fontSize:12, marginTop:6, resize:'vertical'}}/>
+        <div style={{fontSize:10, color:'#999', textAlign:'right'}}>{prompt.length}/500</div>
+      </div>
+      <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12}}>
+        <div>
+          <label style={{fontSize:12, fontWeight:700}}>Style</label>
+          <select value={style} onChange={e=>setStyle(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
+            <option>Viral</option><option>Motivational</option><option>Story</option><option>Custom</option>
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:12, fontWeight:700}}>Độ dài</label>
+          <select value={length} onChange={e=>setLength(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
+            <option>Ngắn</option><option>Vừa</option><option>Dài</option>
+          </select>
+        </div>
+        <div style={{display:'flex', alignItems:'flex-end'}}>
+          <button className="primary" onClick={generate} disabled={!desktop || busy || !prompt.trim()} style={{width:'100%', height:36, justifyContent:'center'}}><Sparkles size={16}/> {busy ? 'Đang tạo...' : 'Tạo nội dung'}</button>
+        </div>
+      </div>
+      {style === 'Custom' && <div>
+        <label style={{fontSize:12, fontWeight:700}}>Custom style</label>
+        <input placeholder="VD: Hài hước GenZ, Trang trọng..." value={customStyle} onChange={e=>setCustomStyle(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+      </div>}
+      <div style={{height:1, background:'#eee'}}/>
+      <div>
+        <label style={{fontSize:12, fontWeight:700}}>Tiêu đề</label>
+        <input placeholder="Tiêu đề sẽ hiện sau khi Tạo..." value={title} onChange={e=>setTitle(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+      </div>
+      <div>
+        <label style={{fontSize:12, fontWeight:700}}>Nội dung</label>
+        <textarea placeholder="Nội dung sẽ hiện sau khi Tạo — bạn có thể chỉnh sửa..." value={body} onChange={e=>setBody(e.target.value)} disabled={busy} style={{width:'100%', minHeight:160, border:'1px solid #e2e1e7', borderRadius:8, padding:12, marginTop:6, fontSize:12, resize:'vertical'}}/>
+      </div>
+      <div>
+        <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+          <label style={{fontSize:12, fontWeight:700}}>Gắn media ({mediaIds.length})</label>
+          <button className="outline" onClick={()=>setShowPicker(!showPicker)} disabled={!desktop} style={{height:32}}><Images size={14}/> {showPicker ? 'Ẩn' : 'Chọn'} media</button>
+        </div>
+        {showPicker && <div className="media-grid" style={{marginTop:10, gridTemplateColumns:'repeat(3,1fr)'}}>{mediaOptions.length ? mediaOptions.map(m => <article key={m.id} className="media-card" style={{border: mediaIds.includes(m.id) ? '2px solid #6558d6' : '1px solid #e8e8ed', cursor:'pointer'}} onClick={()=>toggleMedia(m.id)}><div className="media-preview" style={{aspectRatio:1}}>{m.mediaType==='image'?<img src={m.url} alt={m.name}/>:<><video src={m.url}/><div className="video-badge"><Film size={12}/> VIDEO</div></>}</div><div className="media-info" style={{padding:8}}><strong style={{fontSize:11}}>{m.name}</strong><span style={{fontSize:10}}>{mediaIds.includes(m.id) ? '✓ Đã chọn' : m.extension.toUpperCase()}</span></div></article>) : <span style={{fontSize:11, color:'#777'}}>Thư viện trống — hãy nhập media trước</span>}</div>}
+        {mediaIds.length>0 && <div style={{fontSize:11, color:'#6558d6', marginTop:6}}>Đã chọn {mediaIds.length} media</div>}
+      </div>
+      <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
+        <button className="outline" onClick={()=>{setPrompt(''); setTitle(''); setBody(''); setMediaIds([]); setMsg(''); setErr('')}} disabled={busy} style={{height:36}}>Xóa form</button>
+        <button className="primary" onClick={save} disabled={!desktop || busy} style={{height:36}}><FileText size={16}/> Lưu vào kho</button>
+      </div>
+      <div style={{background:'#fff7e6', border:'1px solid #ffe4b5', borderRadius:8, padding:10, fontSize:11, color:'#8a6d00'}}>Mock demo: Chưa nối OmniRoute thật. Khi bạn lưu OmniRoute Key ở Cài đặt, bản mock vẫn dùng để demo Kho — API thật sẽ được thay thế sau mà không đổi kho.</div>
+    </div>
+  </section>
+}
+
+function ContentWarehousePage() {
+  const desktop = isDesktop()
+  const [items, setItems] = useState([])
+  const [filter, setFilter] = useState('Tất cả')
+  const [query, setQuery] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const refresh = async () => {
+    if (!desktop) return
+    setBusy(true)
+    try {
+      const list = await invokeDesktop('list_content')
+      setItems(list)
+      setErr('')
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const remove = async (id) => {
+    if (!window.confirm('Xóa nội dung này?')) return
+    try { await invokeDesktop('delete_content', { id }); await refresh() } catch (e) { setErr(String(e)) }
+  }
+  const approve = async (id) => {
+    try { await invokeDesktop('update_content_status', { id, status: 'Approved' }); await refresh() } catch (e) { setErr(String(e)) }
+  }
+
+  const filtered = items.filter(it => {
+    if (filter !== 'Tất cả' && it.status !== filter) return false
+    if (query && !`${it.title} ${it.body} ${it.prompt}`.toLowerCase().includes(query.toLowerCase())) return false
+    return true
+  })
+
+  const formatDate = (iso) => {
+    try { return new Intl.DateTimeFormat('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}).format(new Date(iso)) } catch { return iso }
+  }
+
+  return <section className="media-page">
+    <div className="page-heading"><div><p>KHO NỘI DUNG</p><h1>Kho nội dung</h1><span>Lưu trữ nội dung đã tạo, gắn media, duyệt và chuẩn bị lịch đăng.</span></div><div className="media-actions"><button className="outline" onClick={refresh} disabled={!desktop || busy}><RefreshCw size={16}/> Làm mới</button></div></div>
+    {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chỉ bản Tauri mới đọc được kho cục bộ.</span></div></div>}
+    {err && <div className="error-box">{err}</div>}
+    <div className="media-summary" style={{flexWrap:'wrap'}}>
+      <div><FileText size={18}/><span><b>{items.length}</b> tổng</span></div>
+      <div><CircleCheck size={18}/><span><b>{items.filter(i=>i.status==='Draft').length}</b> nháp</span></div>
+      <div><Zap size={18}/><span><b>{items.filter(i=>i.status==='Approved').length}</b> đã duyệt</span></div>
+      <div style={{flex:1, minWidth:160}}><Search size={14}/><input placeholder="Tìm theo tiêu đề, prompt..." value={query} onChange={e=>setQuery(e.target.value)} style={{border:0, outline:0, background:'transparent', flex:1, fontSize:12, width:'100%'}}/></div>
+    </div>
+    <div style={{display:'flex', gap:8, marginBottom:14}}>
+      {['Tất cả','Draft','Approved','Archived'].map(f => <button key={f} onClick={()=>setFilter(f)} className={filter===f ? 'primary' : 'outline'} style={{height:32, fontSize:12}}>{f}</button>)}
+    </div>
+    {filtered.length ? <div style={{display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:14}}>{filtered.map(it => <article key={it.id} className="panel" style={{padding:14, display:'flex', flexDirection:'column', gap:8}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <span style={{fontSize:10, fontWeight:800, color: it.style==='Custom' ? '#d87642' : '#6558d6', background: it.style==='Custom' ? '#fff0e6' : '#f0eefc', padding:'3px 7px', borderRadius:10}}>{it.style}{it.customStyle ? `:${it.customStyle}` : ''}</span>
+        <span style={{fontSize:10, color: it.status==='Approved' ? '#2e7d32' : '#777', background: it.status==='Approved' ? '#e8f5e9' : '#f5f5f5', padding:'3px 7px', borderRadius:10}}>{it.status}</span>
+      </div>
+      <strong style={{fontSize:13, lineHeight:1.4}}>{it.title}</strong>
+      <span style={{fontSize:11, color:'#555', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{it.body}</span>
+      <span style={{fontSize:10, color:'#888'}}>Prompt: {it.prompt} • {formatDate(it.createdAt)} • {it.mediaIds?.length || 0} media</span>
+      <div style={{display:'flex', gap:8, marginTop:4}}>
+        <button className="outline" onClick={()=>approve(it.id)} disabled={it.status==='Approved' || busy} style={{height:30, fontSize:11}}><CircleCheck size={12}/> Duyệt</button>
+        <button className="outline" onClick={()=>remove(it.id)} disabled={busy} style={{height:30, fontSize:11}}><Trash2 size={12}/> Xóa</button>
+      </div>
+    </article>)}</div> : <div className="media-empty"><div><FileText size={34}/></div><h2>{items.length===0 ? 'Kho nội dung đang trống' : 'Không có kết quả'}</h2><p>{items.length===0 ? 'Hãy tạo nội dung ở AI Content và Lưu vào kho.' : 'Thử đổi bộ lọc hoặc từ khóa.'}</p></div>}
+  </section>
+}
+
 function App() {
   const [active, setActive] = useState('Tổng quan')
   const [period, setPeriod] = useState('7 ngày qua')
   const [toast, setToast] = useState(false)
+  const [contentCount, setContentCount] = useState(0)
+  const desktop = isDesktop()
   const today = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())
-  const createPost = () => { setToast(true); setTimeout(() => setToast(false), 2600) }
+  const createPost = () => { setActive('AI Content'); setToast(true); setTimeout(() => setToast(false), 2600) }
+
+  useEffect(() => {
+    if (!desktop) return
+    const load = async () => {
+      try { const list = await invokeDesktop('list_content'); setContentCount(list.length) } catch { /* ignore - keep badge */ }
+    }
+    load()
+    const id = setInterval(load, 4000)
+    return () => clearInterval(id)
+  }, [desktop, active])
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark"><WandSparkles size={21}/></div><span>FlowPost <b>AI</b></span></div>
-      <nav>{nav.map(([name, Icon]) => <button className={active === name ? 'active' : ''} onClick={() => setActive(name)} key={name}><Icon size={19}/><span>{name}</span>{name === 'Kho nội dung' && <em>24</em>}</button>)}</nav>
+      <nav>{nav.map(([name, Icon]) => <button className={active === name ? 'active' : ''} onClick={() => setActive(name)} key={name}><Icon size={19}/><span>{name}</span>{name === 'Kho nội dung' && <em>{contentCount}</em>}</button>)}</nav>
       <div className="sidebar-bottom">
         <button onClick={() => setActive('Cài đặt')} className={active === 'Cài đặt' ? 'active' : ''}><Settings size={19}/><span>Cài đặt</span></button>
         <SettingsStatus/>
@@ -190,7 +378,7 @@ function App() {
     <main>
       <header><div className="search"><Search size={18}/><input aria-label="Tìm kiếm" placeholder="Tìm kiếm nội dung, bài viết..."/><kbd>⌘ K</kbd></div><div className="head-actions"><button className="bell" aria-label="Thông báo"><Bell size={20}/><i/></button><button className="primary" onClick={createPost}><Plus size={19}/> Tạo nội dung mới</button></div></header>
       <div className="content">
-        {active === 'Thư viện media' ? <MediaLibrary/> : active === 'Cài đặt' ? <SettingsPage/> : <>
+        {active === 'AI Content' ? <AiContentPage/> : active === 'Kho nội dung' ? <ContentWarehousePage/> : active === 'Thư viện media' ? <MediaLibrary/> : active === 'Cài đặt' ? <SettingsPage/> : <>
         <section className="welcome"><div><p>{today}</p><h1>Chào buổi sáng, An! <span>👋</span></h1><div className="welcome-sub">Hôm nay bạn có <b>3 bài viết</b> đang chờ được đăng.</div></div><button className="outline"><CalendarDays size={17}/> Xem lịch nội dung</button></section>
 
         <section className="stats-grid">

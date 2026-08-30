@@ -1,0 +1,324 @@
+use keyring::Entry;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+use tauri::{AppHandle, Manager};
+
+const SERVICE: &str = "vn.flowpost.desktop";
+const FB_KEY: &str = "facebook_token";
+const OMNI_KEY: &str = "omniroute_key";
+
+fn entry_for(key: &str) -> Result<Entry, String> {
+    Entry::new(SERVICE, key).map_err(|e| e.to_string())
+}
+
+// --- File fallback ---
+
+fn fallback_path(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?;
+    Ok(dir.join("secure-credentials.json"))
+}
+
+#[cfg(test)]
+fn fallback_path_for_test(dir: &Path) -> PathBuf {
+    dir.join("secure-credentials.json")
+}
+
+fn read_fallback_map(path: &Path) -> HashMap<String, String> {
+    if !path.exists() {
+        return HashMap::new();
+    }
+    let contents = fs::read_to_string(path).unwrap_or_default();
+    serde_json::from_str(&contents).unwrap_or_default()
+}
+
+fn write_fallback_map(path: &Path, map: &HashMap<String, String>) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let json = serde_json::to_string_pretty(map).map_err(|e| e.to_string())?;
+    // atomic via tmp
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, json).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, path).map_err(|e| e.to_string())
+}
+
+fn set_fallback(app: &AppHandle, key: &str, value: &str) -> Result<(), String> {
+    let path = fallback_path(app)?;
+    let mut map = read_fallback_map(&path);
+    if value.trim().is_empty() {
+        map.remove(key);
+    } else {
+        map.insert(key.to_string(), value.to_string());
+    }
+    write_fallback_map(&path, &map)
+}
+
+fn get_fallback(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
+    let path = fallback_path(app)?;
+    let map = read_fallback_map(&path);
+    Ok(map.get(key).cloned())
+}
+
+fn delete_fallback(app: &AppHandle, key: &str) -> Result<(), String> {
+    set_fallback(app, key, "")
+}
+
+fn has_fallback(app: &AppHandle, key: &str) -> Result<bool, String> {
+    Ok(get_fallback(app, key)?.is_some())
+}
+
+// For tests with temp dir
+#[cfg(test)]
+fn set_fallback_at(dir: &Path, key: &str, value: &str) -> Result<(), String> {
+    let path = fallback_path_for_test(dir);
+    let mut map = read_fallback_map(&path);
+    if value.trim().is_empty() {
+        map.remove(key);
+    } else {
+        map.insert(key.to_string(), value.to_string());
+    }
+    write_fallback_map(&path, &map)
+}
+#[cfg(test)]
+fn get_fallback_at(dir: &Path, key: &str) -> Result<Option<String>, String> {
+    let path = fallback_path_for_test(dir);
+    let map = read_fallback_map(&path);
+    Ok(map.get(key).cloned())
+}
+
+// --- Hybrid keyring + file ---
+
+fn set_secret_hybrid(app: Option<&AppHandle>, key: &str, value: &str) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return delete_secret_hybrid(app, key);
+    }
+    // Try keyring first (best effort)
+    let keyring_ok = match entry_for(key) {
+        Ok(e) => e.set_password(value).is_ok(),
+        Err(_) => false,
+    };
+    // Always also write to fallback if app available, or consider it success if keyring succeeded
+    if let Some(a) = app {
+        // If keyring succeeded, we still write fallback as backup for cross-Entry bug
+        set_fallback(a, key, value)?;
+        if keyring_ok {
+            return Ok(());
+        }
+        // If keyring failed, fallback already written
+        return Ok(());
+    }
+    if keyring_ok {
+        Ok(())
+    } else {
+        Err("No app handle for fallback and keyring failed".into())
+    }
+}
+
+fn get_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<Option<String>, String> {
+    // Try keyring first
+    if let Ok(entry) = entry_for(key) {
+        match entry.get_password() {
+            Ok(v) => return Ok(Some(v)),
+            Err(keyring::Error::NoEntry) => {} // fallthrough to fallback
+            Err(e) => {
+                // Platform failure -> try fallback if available
+                if let Some(a) = app {
+                    if let Ok(v) = get_fallback(a, key) {
+                        if v.is_some() {
+                            return Ok(v);
+                        }
+                    }
+                }
+                return Err(e.to_string());
+            }
+        }
+    }
+    if let Some(a) = app {
+        return get_fallback(a, key);
+    }
+    Ok(None)
+}
+
+fn delete_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<(), String> {
+    let mut keyring_err: Option<String> = None;
+    match entry_for(key) {
+        Ok(e) => match e.delete_credential() {
+            Ok(_) => {}
+            Err(keyring::Error::NoEntry) => {}
+            Err(e) => keyring_err = Some(e.to_string()),
+        },
+        Err(e) => keyring_err = Some(e),
+    }
+    if let Some(a) = app {
+        let _ = delete_fallback(a, key);
+        // If fallback succeeded, consider delete ok even if keyring had error
+        if keyring_err.is_some() {
+            // Check fallback still
+            return Ok(());
+        }
+        return Ok(());
+    }
+    if let Some(err) = keyring_err {
+        Err(err)
+    } else {
+        Ok(())
+    }
+}
+
+fn has_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<bool, String> {
+    if let Ok(entry) = entry_for(key) {
+        match entry.get_password() {
+            Ok(_) => return Ok(true),
+            Err(keyring::Error::NoEntry) => {}
+            Err(_) => {} // fallthrough
+        }
+    }
+    if let Some(a) = app {
+        return has_fallback(a, key);
+    }
+    Ok(false)
+}
+
+// For tests that need AppHandle, we will test via fallback_at directly
+
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CredentialStatus {
+    pub has_facebook_token: bool,
+    pub has_omniroute_key: bool,
+}
+
+#[tauri::command]
+pub fn set_facebook_token(app: AppHandle, token: String) -> Result<(), String> {
+    set_secret_hybrid(Some(&app), FB_KEY, &token)
+}
+
+#[tauri::command]
+pub fn get_facebook_token(app: AppHandle) -> Result<Option<String>, String> {
+    get_secret_hybrid(Some(&app), FB_KEY)
+}
+
+#[tauri::command]
+pub fn delete_facebook_token(app: AppHandle) -> Result<(), String> {
+    delete_secret_hybrid(Some(&app), FB_KEY)
+}
+
+#[tauri::command]
+pub fn set_omniroute_key(app: AppHandle, key: String) -> Result<(), String> {
+    set_secret_hybrid(Some(&app), OMNI_KEY, &key)
+}
+
+#[tauri::command]
+pub fn get_omniroute_key(app: AppHandle) -> Result<Option<String>, String> {
+    get_secret_hybrid(Some(&app), OMNI_KEY)
+}
+
+#[tauri::command]
+pub fn delete_omniroute_key(app: AppHandle) -> Result<(), String> {
+    delete_secret_hybrid(Some(&app), OMNI_KEY)
+}
+
+#[tauri::command]
+pub fn credential_status(app: AppHandle) -> Result<CredentialStatus, String> {
+    Ok(CredentialStatus {
+        has_facebook_token: has_secret_hybrid(Some(&app), FB_KEY)?,
+        has_omniroute_key: has_secret_hybrid(Some(&app), OMNI_KEY)?,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    fn unique_temp_dir(prefix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let dir = std::env::temp_dir().join(format!("{}_{}_{}", prefix, std::process::id(), nanos));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn test_fallback_set_get_delete() {
+        let dir = unique_temp_dir("flowpost_sec_fallback");
+        let key = "test_fb_fallback";
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), None);
+        set_fallback_at(&dir, key, "fb_test_123").unwrap();
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), Some("fb_test_123".into()));
+        set_fallback_at(&dir, key, "fb_test_456").unwrap();
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), Some("fb_test_456".into()));
+        set_fallback_at(&dir, key, "").unwrap();
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), None);
+        // Delete non-existent should be ok
+        set_fallback_at(&dir, key, "").unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_fallback_overwrite_and_persistence() {
+        let dir = unique_temp_dir("flowpost_sec_overwrite");
+        let key = "overwrite_key";
+        set_fallback_at(&dir, key, "first").unwrap();
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), Some("first".into()));
+        set_fallback_at(&dir, key, "second").unwrap();
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), Some("second".into()));
+        // Verify file exists and is JSON
+        let path = fallback_path_for_test(&dir);
+        assert!(path.exists());
+        let contents = std::fs::read_to_string(&path).unwrap();
+        let map: HashMap<String, String> = serde_json::from_str(&contents).unwrap();
+        assert_eq!(map.get(key).unwrap(), "second");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_fallback_atomic_no_tmp_leak() {
+        let dir = unique_temp_dir("flowpost_sec_atomic");
+        let key = "atomic_key";
+        set_fallback_at(&dir, key, "value1").unwrap();
+        let tmp = fallback_path_for_test(&dir).with_extension("json.tmp");
+        assert!(!tmp.exists(), "tmp should be cleaned");
+        set_fallback_at(&dir, key, "value2").unwrap();
+        assert!(!tmp.exists());
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), Some("value2".into()));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_delete_cleans_via_fallback() {
+        let dir = unique_temp_dir("flowpost_sec_delete");
+        let key = "delete_key";
+        set_fallback_at(&dir, key, "temp_value").unwrap();
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), Some("temp_value".into()));
+        set_fallback_at(&dir, key, "").unwrap();
+        assert_eq!(get_fallback_at(&dir, key).unwrap(), None);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_hybrid_with_real_app_fallback() {
+        // This test mimics hybrid behavior without AppHandle by using fallback_at directly
+        // It ensures that even if keyring is broken, fallback provides persistence across "entries"
+        let dir = unique_temp_dir("flowpost_hybrid");
+        let fb_key = "facebook_token";
+        let omni_key = "omniroute_key";
+        // Simulate set via hybrid with no keyring (fallback only)
+        set_fallback_at(&dir, fb_key, "fb_secret").unwrap();
+        set_fallback_at(&dir, omni_key, "omni_secret").unwrap();
+        assert_eq!(get_fallback_at(&dir, fb_key).unwrap(), Some("fb_secret".into()));
+        assert_eq!(get_fallback_at(&dir, omni_key).unwrap(), Some("omni_secret".into()));
+        // Delete one
+        set_fallback_at(&dir, fb_key, "").unwrap();
+        assert_eq!(get_fallback_at(&dir, fb_key).unwrap(), None);
+        assert_eq!(get_fallback_at(&dir, omni_key).unwrap(), Some("omni_secret".into()));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+}

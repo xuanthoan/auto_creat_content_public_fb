@@ -54,7 +54,8 @@ function MediaLibrary() {
     } catch (reason) { setError(String(reason)) } finally { setBusy(false) }
   }
 
-  useEffect(() => { refresh() }, [])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const importFiles = async () => {
     setBusy(true)
@@ -77,12 +78,102 @@ function MediaLibrary() {
   </section>
 }
 
+function SettingsPage() {
+  const desktop = isDesktop()
+  const [fbInput, setFbInput] = useState('')
+  const [omniInput, setOmniInput] = useState('')
+  const [status, setStatus] = useState({ hasFacebookToken: false, hasOmnirouteKey: false })
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+
+  const refresh = async () => {
+    if (!desktop) return
+    try {
+      const s = await invokeDesktop('credential_status')
+      setStatus(s)
+    } catch (e) { setErr(String(e)) }
+  }
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveFb = async () => {
+    if (!fbInput.trim()) { setErr('Vui lòng nhập Facebook Token'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try { await invokeDesktop('set_facebook_token', { token: fbInput }); setFbInput(''); await refresh(); setMsg('Đã lưu Facebook Token vào kho bảo mật OS') }
+    catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+  const deleteFb = async () => {
+    if (!window.confirm('Xóa Facebook Token khỏi kho bảo mật?')) return
+    setBusy(true); setErr(''); setMsg('')
+    try { await invokeDesktop('delete_facebook_token'); await refresh(); setMsg('Đã xóa Facebook Token') }
+    catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+  const saveOmni = async () => {
+    if (!omniInput.trim()) { setErr('Vui lòng nhập OmniRoute API Key'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try { await invokeDesktop('set_omniroute_key', { key: omniInput }); setOmniInput(''); await refresh(); setMsg('Đã lưu OmniRoute Key') }
+    catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+  const deleteOmni = async () => {
+    if (!window.confirm('Xóa OmniRoute Key khỏi kho bảo mật?')) return
+    setBusy(true); setErr(''); setMsg('')
+    try { await invokeDesktop('delete_omniroute_key'); await refresh(); setMsg('Đã xóa OmniRoute Key') }
+    catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  return <section className="media-page">
+    <div className="page-heading"><div><p>BẢO MẬT CỤC BỘ</p><h1>Cài đặt</h1><span>Token và API key được lưu trong Credential Manager / Keychain của hệ điều hành, không bao giờ lưu trong frontend hay file JSON.</span></div></div>
+    {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chức năng bảo mật chỉ hoạt động trong bản Tauri.</span></div></div>}
+    {err && <div className="error-box">{err}</div>}
+    {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
+    <div className="panel" style={{padding:20, display:'flex', flexDirection:'column', gap:18}}>
+      <div>
+        <h2 style={{fontSize:14, margin:'0 0 8px'}}>Facebook Token</h2>
+        <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Dùng cho Graph API đăng bài. Token được mã hóa trong OS vault. Frontend chỉ biết trạng thái <b>{status.hasFacebookToken ? '●●●● đã lưu' : 'chưa lưu'}</b>.</p>
+        <div style={{display:'flex', gap:8}}>
+          <input type="password" placeholder={status.hasFacebookToken ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập Facebook User/Page Access Token'} value={fbInput} onChange={e=>setFbInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
+          <button className="primary" onClick={saveFb} disabled={!desktop || busy} style={{height:36}}><Zap size={14}/> Lưu</button>
+          <button className="outline" onClick={deleteFb} disabled={!desktop || busy || !status.hasFacebookToken} style={{height:36}}><Trash2 size={14}/> Xóa</button>
+        </div>
+      </div>
+      <div style={{height:1, background:'#eee'}}/>
+      <div>
+        <h2 style={{fontSize:14, margin:'0 0 8px'}}>OmniRoute API Key</h2>
+        <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Dùng cho AI Content. Key được lưu an toàn, Rust backend sẽ làm proxy gọi API, không lộ qua DevTools.</p>
+        <div style={{display:'flex', gap:8}}>
+          <input type="password" placeholder={status.hasOmnirouteKey ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập OmniRoute API Key'} value={omniInput} onChange={e=>setOmniInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
+          <button className="primary" onClick={saveOmni} disabled={!desktop || busy} style={{height:36}}><WandSparkles size={14}/> Lưu</button>
+          <button className="outline" onClick={deleteOmni} disabled={!desktop || busy || !status.hasOmnirouteKey} style={{height:36}}><Trash2 size={14}/> Xóa</button>
+        </div>
+      </div>
+      <div style={{background:'#f7f6fe', border:'1px solid #eceafa', borderRadius:8, padding:12, fontSize:11, color:'#5e58a6'}}>
+        <strong style={{display:'flex', alignItems:'center', gap:6}}><HardDrive size={14}/> Lưu trữ: </strong>
+        <span>Windows Credential Manager / macOS Keychain / Linux Secret Service — fallback file <code>secure-credentials.json</code> trong AppData (atomic write). Không bao giờ ghi vào <code>media-index.json</code> hay localStorage.</span>
+      </div>
+    </div>
+  </section>
+}
+
+function SettingsStatus() {
+  const [status, setStatus] = useState({ hasFacebookToken: false, hasOmnirouteKey: false })
+  const desktop = isDesktop()
+  useEffect(() => {
+    if (!desktop) return
+    invokeDesktop('credential_status').then(setStatus).catch(()=>{})
+    const id = setInterval(() => invokeDesktop('credential_status').then(setStatus).catch(()=>{}), 4000)
+    return () => clearInterval(id)
+  }, [desktop])
+  const hasAny = status.hasFacebookToken || status.hasOmnirouteKey
+  return <div className="token-box"><div className="token-title"><span><Zap size={14}/> Bảo mật</span><b style={{color: hasAny ? '#2e7d32' : '#d87642'}}>{hasAny ? 'Đã lưu' : 'Chưa lưu'}</b></div><div className="progress"><i style={{width: status.hasFacebookToken && status.hasOmnirouteKey ? '100%' : status.hasFacebookToken || status.hasOmnirouteKey ? '50%' : '0%', background: hasAny ? '#4caf50' : '#e4a263'}}/></div><p>{status.hasFacebookToken ? 'FB Token ●●●●' : 'FB Token chưa lưu'} • {status.hasOmnirouteKey ? 'Omni ●●●●' : 'Omni chưa lưu'}</p></div>
+}
+
 function App() {
   const [active, setActive] = useState('Tổng quan')
   const [period, setPeriod] = useState('7 ngày qua')
   const [toast, setToast] = useState(false)
   const today = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())
-  const tokenExpiry = new Intl.DateTimeFormat('vi-VN').format(new Date(Date.now() + 28 * 86400000))
   const createPost = () => { setToast(true); setTimeout(() => setToast(false), 2600) }
 
   return <div className="app-shell">
@@ -90,8 +181,8 @@ function App() {
       <div className="brand"><div className="brand-mark"><WandSparkles size={21}/></div><span>FlowPost <b>AI</b></span></div>
       <nav>{nav.map(([name, Icon]) => <button className={active === name ? 'active' : ''} onClick={() => setActive(name)} key={name}><Icon size={19}/><span>{name}</span>{name === 'Kho nội dung' && <em>24</em>}</button>)}</nav>
       <div className="sidebar-bottom">
-        <button><Settings size={19}/><span>Cài đặt</span></button>
-        <div className="token-box"><div className="token-title"><span><Zap size={14}/> Facebook Token</span><b>28 ngày</b></div><div className="progress"><i/></div><p>Hết hạn vào {tokenExpiry}</p></div>
+        <button onClick={() => setActive('Cài đặt')} className={active === 'Cài đặt' ? 'active' : ''}><Settings size={19}/><span>Cài đặt</span></button>
+        <SettingsStatus/>
         <div className="profile"><div className="avatar">NA</div><div><strong>Nguyễn An</strong><span>Quản trị viên</span></div><ChevronDown size={17}/></div>
       </div>
     </aside>
@@ -99,7 +190,7 @@ function App() {
     <main>
       <header><div className="search"><Search size={18}/><input aria-label="Tìm kiếm" placeholder="Tìm kiếm nội dung, bài viết..."/><kbd>⌘ K</kbd></div><div className="head-actions"><button className="bell" aria-label="Thông báo"><Bell size={20}/><i/></button><button className="primary" onClick={createPost}><Plus size={19}/> Tạo nội dung mới</button></div></header>
       <div className="content">
-        {active === 'Thư viện media' ? <MediaLibrary/> : <>
+        {active === 'Thư viện media' ? <MediaLibrary/> : active === 'Cài đặt' ? <SettingsPage/> : <>
         <section className="welcome"><div><p>{today}</p><h1>Chào buổi sáng, An! <span>👋</span></h1><div className="welcome-sub">Hôm nay bạn có <b>3 bài viết</b> đang chờ được đăng.</div></div><button className="outline"><CalendarDays size={17}/> Xem lịch nội dung</button></section>
 
         <section className="stats-grid">

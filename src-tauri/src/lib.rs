@@ -6,6 +6,8 @@ use std::{
 };
 use tauri::{AppHandle, Manager};
 
+mod security;
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct MediaItem {
@@ -357,7 +359,14 @@ pub fn run() {
             list_media,
             import_media,
             delete_media,
-            media_location
+            media_location,
+            security::set_facebook_token,
+            security::get_facebook_token,
+            security::delete_facebook_token,
+            security::set_omniroute_key,
+            security::get_omniroute_key,
+            security::delete_omniroute_key,
+            security::credential_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowPost AI");

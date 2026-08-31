@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Manager, Runtime};
 
 const SERVICE: &str = "vn.flowpost.desktop";
 const FB_KEY: &str = "facebook_token";
@@ -15,7 +15,7 @@ fn entry_for(key: &str) -> Result<Entry, String> {
 
 // --- File fallback ---
 
-fn fallback_path(app: &AppHandle) -> Result<PathBuf, String> {
+fn fallback_path<R: Runtime>(app: &AppHandle<R>) -> Result<PathBuf, String> {
     let dir = app
         .path()
         .app_data_dir()
@@ -47,7 +47,7 @@ fn write_fallback_map(path: &Path, map: &HashMap<String, String>) -> Result<(), 
     fs::rename(&tmp, path).map_err(|e| e.to_string())
 }
 
-fn set_fallback(app: &AppHandle, key: &str, value: &str) -> Result<(), String> {
+fn set_fallback<R: Runtime>(app: &AppHandle<R>, key: &str, value: &str) -> Result<(), String> {
     let path = fallback_path(app)?;
     let mut map = read_fallback_map(&path);
     if value.trim().is_empty() {
@@ -58,17 +58,17 @@ fn set_fallback(app: &AppHandle, key: &str, value: &str) -> Result<(), String> {
     write_fallback_map(&path, &map)
 }
 
-fn get_fallback(app: &AppHandle, key: &str) -> Result<Option<String>, String> {
+fn get_fallback<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<Option<String>, String> {
     let path = fallback_path(app)?;
     let map = read_fallback_map(&path);
     Ok(map.get(key).cloned())
 }
 
-fn delete_fallback(app: &AppHandle, key: &str) -> Result<(), String> {
+fn delete_fallback<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<(), String> {
     set_fallback(app, key, "")
 }
 
-fn has_fallback(app: &AppHandle, key: &str) -> Result<bool, String> {
+fn has_fallback<R: Runtime>(app: &AppHandle<R>, key: &str) -> Result<bool, String> {
     Ok(get_fallback(app, key)?.is_some())
 }
 
@@ -93,7 +93,7 @@ fn get_fallback_at(dir: &Path, key: &str) -> Result<Option<String>, String> {
 
 // --- Hybrid keyring + file ---
 
-pub fn set_secret_hybrid(app: Option<&AppHandle>, key: &str, value: &str) -> Result<(), String> {
+pub fn set_secret_hybrid<R: Runtime>(app: Option<&AppHandle<R>>, key: &str, value: &str) -> Result<(), String> {
     if value.trim().is_empty() {
         return delete_secret_hybrid(app, key);
     }
@@ -119,7 +119,7 @@ pub fn set_secret_hybrid(app: Option<&AppHandle>, key: &str, value: &str) -> Res
     }
 }
 
-pub fn get_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<Option<String>, String> {
+pub fn get_secret_hybrid<R: Runtime>(app: Option<&AppHandle<R>>, key: &str) -> Result<Option<String>, String> {
     // Try keyring first
     if let Ok(entry) = entry_for(key) {
         match entry.get_password() {
@@ -144,7 +144,7 @@ pub fn get_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<Option<St
     Ok(None)
 }
 
-fn delete_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<(), String> {
+pub fn delete_secret_hybrid<R: Runtime>(app: Option<&AppHandle<R>>, key: &str) -> Result<(), String> {
     let mut keyring_err: Option<String> = None;
     match entry_for(key) {
         Ok(e) => match e.delete_credential() {
@@ -170,7 +170,7 @@ fn delete_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<(), String
     }
 }
 
-fn has_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<bool, String> {
+fn has_secret_hybrid<R: Runtime>(app: Option<&AppHandle<R>>, key: &str) -> Result<bool, String> {
     if let Ok(entry) = entry_for(key) {
         match entry.get_password() {
             Ok(_) => return Ok(true),

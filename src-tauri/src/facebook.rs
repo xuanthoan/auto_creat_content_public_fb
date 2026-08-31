@@ -335,14 +335,17 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(not(windows))]
     async fn test_publish_content_with_mock_token() {
-        // Test này kiểm tra publish_content với token mock mà không cần gọi network thật
-        // Do tauri::test::mock_app cần MockRuntime, test này sẽ dùng keyring trực tiếp để tránh phụ thuộc mock_app
-        // Trong cfg(test) nhánh ảnh sẽ trả mock_photo_123 mà không cần token thật
-        // Ở đây chỉ kiểm tra các nhánh lỗi tiếng Việt không cần AppHandle phức tạp
-        // Để đơn giản, test này chỉ kiểm tra PageInfo và page_token_key đã được cover ở trên
-        // Giữ test này để đếm số lượng test, nhưng không gọi publish_content để tránh MockRuntime mismatch
-        assert_eq!(page_token_key("test123"), "fb_page_test123");
-        assert!(true);
+        let app = tauri::test::mock_app();
+        let handle = app.handle().clone();
+        let page_id = format!("test_{}", uuid::Uuid::new_v4());
+        let key = page_token_key(&page_id);
+        crate::security::set_secret_hybrid(Some(&handle), &key, "mock_page_token_abc123456").unwrap();
+        let result = crate::facebook::publish_content(handle.clone(), page_id.clone(), "hello".into(), None)
+            .await
+            .unwrap();
+        assert_eq!(result["id"], "mock_photo_123");
+        let _ = crate::security::delete_secret_hybrid(Some(&handle), &key);
     }
 }

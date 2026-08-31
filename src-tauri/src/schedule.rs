@@ -28,8 +28,12 @@ pub struct ScheduleItem {
     pub platform: String,
     #[serde(default)]
     pub pages: Vec<String>,
+    #[serde(default)]
+    pub page_id: Option<String>,
     pub status: ScheduleStatus,
     pub retry_count: u32,
+    #[serde(default)]
+    pub last_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -66,6 +70,50 @@ fn write_schedule_index(app: &AppHandle, items: &[ScheduleItem]) -> Result<(), S
     let json = serde_json::to_string_pretty(items).map_err(|e| e.to_string())?;
     fs::write(&tmp, json).map_err(|e| e.to_string())?;
     fs::rename(&tmp, &path).map_err(|e| e.to_string())
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SchedulerConfig {
+    pub interval_seconds: u64,   // 30 (mặc định), 60, custom ≤3600
+    pub enabled: bool,           // bật/tắt scheduler
+    pub selected_page_id: Option<String>, // page_id user chọn (persist)
+}
+
+impl Default for SchedulerConfig {
+    fn default() -> Self {
+        Self { interval_seconds: 30, enabled: true, selected_page_id: None }
+    }
+}
+
+fn read_scheduler_config(app: &AppHandle) -> Result<SchedulerConfig, String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("schedule-config.json");
+    if path.exists() {
+        let c = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        if c.trim().is_empty() {
+            return Ok(SchedulerConfig::default());
+        }
+        serde_json::from_str(&c).map_err(|e| e.to_string())
+    } else {
+        Ok(SchedulerConfig::default())
+    }
+}
+
+fn write_scheduler_config(app: &AppHandle, config: &SchedulerConfig) -> Result<(), String> {
+    let path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("schedule-config.json");
+    let tmp = path.with_extension("json.tmp");
+    let json = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    fs::write(&tmp, json).map_err(|e| e.to_string())?;
+    fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[cfg(test)]
@@ -145,14 +193,17 @@ pub fn create_schedule(app: AppHandle, payload: CreateSchedulePayload) -> Result
 
     let mut items = read_schedule_index(&app)?;
 
+    let pages = payload.pages.unwrap_or_default();
     let item = ScheduleItem {
         id: uuid::Uuid::new_v4().to_string(),
         content_id: payload.content_id.trim().to_string(),
         scheduled_at: payload.scheduled_at,
         platform: payload.platform.trim().to_string(),
-        pages: payload.pages.unwrap_or_default(),
+        pages: pages.clone(),
+        page_id: pages.first().cloned(),
         status: ScheduleStatus::Scheduled,
         retry_count: 0,
+        last_error: None,
         created_at: now,
         updated_at: now,
     };
@@ -207,6 +258,163 @@ pub fn reschedule(app: AppHandle, id: String, scheduled_at: DateTime<Utc>) -> Re
     Ok(updated)
 }
 
+#[tauri::command]
+pub async fn start_scheduler(app: AppHandle) -> Result<(), String> {
+    let mut config = read_scheduler_config(&app)?;
+    config.enabled = true;
+    write_scheduler_config(&app, &config)?;
+
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let interval_secs = config.interval_seconds;
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+        loop {
+            interval.tick().await;
+            let current_config = match read_scheduler_config(&app_handle) {
+                Ok(c) => c,
+                Err(_) => break,
+            };
+            if !current_config.enabled {
+                break;
+            }
+            let _ = process_due_schedules(&app_handle).await;
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn stop_scheduler(app: AppHandle) -> Result<(), String> {
+    let mut config = read_scheduler_config(&app)?;
+    config.enabled = false;
+    write_scheduler_config(&app, &config)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_scheduler_config(app: AppHandle) -> Result<SchedulerConfig, String> {
+    read_scheduler_config(&app)
+}
+
+#[tauri::command]
+pub fn set_scheduler_config(app: AppHandle, config: SchedulerConfig) -> Result<(), String> {
+    write_scheduler_config(&app, &config)
+}
+
+#[tauri::command]
+pub fn select_scheduler_page(app: AppHandle, page_id: String) -> Result<(), String> {
+    let mut config = read_scheduler_config(&app)?;
+    config.selected_page_id = Some(page_id);
+    write_scheduler_config(&app, &config)
+}
+
+fn retry_delay_minutes(n: u32) -> i64 {
+    match n {
+        1 => 5,
+        2 => 10,
+        _ => 30,
+    }
+}
+
+pub async fn process_due_schedules(app: &AppHandle) -> Result<(), String> {
+    let config = read_scheduler_config(app).unwrap_or_default();
+    let mut items = read_schedule_index(app)?;
+    let now = Utc::now();
+    let mut changed = false;
+    for i in 0..items.len() {
+        if items[i].status != ScheduleStatus::Scheduled {
+            continue;
+        }
+        if items[i].retry_count >= 3 {
+            continue;
+        }
+        if items[i].scheduled_at > now {
+            continue;
+        }
+        // Phân giải page_id: item.page_id -> config.selected_page_id -> pages.first()
+        let resolved_page_id = items[i]
+            .page_id
+            .clone()
+            .or_else(|| config.selected_page_id.clone())
+            .or_else(|| items[i].pages.first().cloned())
+            .unwrap_or_default();
+        if resolved_page_id.trim().is_empty() {
+            items[i].last_error = Some("Thiếu page_id để đăng bài".into());
+            items[i].retry_count += 1;
+            if items[i].retry_count >= 3 {
+                items[i].status = ScheduleStatus::Failed;
+            } else {
+                items[i].scheduled_at = now + chrono::Duration::minutes(retry_delay_minutes(items[i].retry_count));
+            }
+            items[i].updated_at = now;
+            changed = true;
+            continue;
+        }
+        // Lấy nội dung body từ content
+        let content_body = match read_content_body(app, &items[i].content_id) {
+            Ok(b) => b,
+            Err(e) => {
+                items[i].last_error = Some(e);
+                items[i].retry_count += 1;
+                if items[i].retry_count >= 3 {
+                    items[i].status = ScheduleStatus::Failed;
+                } else {
+                    items[i].scheduled_at = now + chrono::Duration::minutes(retry_delay_minutes(items[i].retry_count));
+                }
+                items[i].updated_at = now;
+                changed = true;
+                continue;
+            }
+        };
+        // Gọi publish
+        let res = crate::facebook::publish_content(app.clone(), resolved_page_id.clone(), content_body, None).await;
+        match res {
+            Ok(_) => {
+                items[i].status = ScheduleStatus::Published;
+                items[i].last_error = None;
+                items[i].updated_at = now;
+                changed = true;
+            }
+            Err(e) => {
+                items[i].retry_count += 1;
+                items[i].last_error = Some(e);
+                if items[i].retry_count >= 3 {
+                    items[i].status = ScheduleStatus::Failed;
+                } else {
+                    items[i].scheduled_at = now + chrono::Duration::minutes(retry_delay_minutes(items[i].retry_count));
+                }
+                items[i].updated_at = now;
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        write_schedule_index(app, &items)?;
+    }
+    Ok(())
+}
+
+fn read_content_body(app: &AppHandle, content_id: &str) -> Result<String, String> {
+    let content_path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("content")
+        .join("content-index.json");
+    if !content_path.exists() {
+        return Err(format!("Không tìm thấy nội dung {}", content_id));
+    }
+    let contents = std::fs::read_to_string(&content_path).map_err(|e| e.to_string())?;
+    if contents.trim().is_empty() {
+        return Err(format!("Không tìm thấy nội dung {}", content_id));
+    }
+    let items: Vec<crate::content::ContentItem> =
+        serde_json::from_str(&contents).map_err(|e| e.to_string())?;
+    let found = items.into_iter().find(|c| c.id == content_id).ok_or_else(|| format!("Không tìm thấy nội dung {}", content_id))?;
+    Ok(found.body)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -226,8 +434,10 @@ mod tests {
             scheduled_at: Utc::now() + chrono::Duration::minutes(minutes_ahead),
             platform: "Sống Tích Cực".into(),
             pages: vec!["page1".into()],
+            page_id: Some("page1".into()),
             status: ScheduleStatus::Scheduled,
             retry_count: 0,
+            last_error: None,
             created_at: Utc::now(),
             updated_at: Utc::now(),
         }
@@ -278,6 +488,35 @@ mod tests {
         write_schedule_at(&path, &[]).unwrap();
         let parsed: Vec<ScheduleItem> = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
         assert_eq!(parsed.len(), 0);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_retry_delay() {
+        assert_eq!(retry_delay_minutes(1), 5);
+        assert_eq!(retry_delay_minutes(2), 10);
+        assert_eq!(retry_delay_minutes(3), 30);
+        assert_eq!(retry_delay_minutes(99), 30);
+    }
+
+    #[test]
+    fn test_schedule_page_id_and_last_error_roundtrip() {
+        let dir = unique_temp_dir("flowpost_schedule_page_id");
+        let path = dir.join("schedule-index.json");
+        let mut item = sample_schedule("c1", 10);
+        item.page_id = Some("page123".into());
+        item.last_error = Some("lỗi thử".into());
+        item.retry_count = 2;
+        write_schedule_at(&path, &[item.clone()]).unwrap();
+        let parsed: Vec<ScheduleItem> = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(parsed[0].page_id, Some("page123".into()));
+        assert_eq!(parsed[0].last_error, Some("lỗi thử".into()));
+        assert_eq!(parsed[0].retry_count, 2);
+        // Test default khi thiếu field (backward compat)
+        let json_old = r#"[{"id":"old","contentId":"c","scheduledAt":"2026-01-01T00:00:00Z","platform":"FB","pages":["p1"],"status":"scheduled","retryCount":0,"createdAt":"2026-01-01T00:00:00Z","updatedAt":"2026-01-01T00:00:00Z"}]"#;
+        let parsed_old: Vec<ScheduleItem> = serde_json::from_str(json_old).unwrap();
+        assert_eq!(parsed_old[0].page_id, None);
+        assert_eq!(parsed_old[0].last_error, None);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

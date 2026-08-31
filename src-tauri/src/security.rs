@@ -93,7 +93,7 @@ fn get_fallback_at(dir: &Path, key: &str) -> Result<Option<String>, String> {
 
 // --- Hybrid keyring + file ---
 
-fn set_secret_hybrid(app: Option<&AppHandle>, key: &str, value: &str) -> Result<(), String> {
+pub fn set_secret_hybrid(app: Option<&AppHandle>, key: &str, value: &str) -> Result<(), String> {
     if value.trim().is_empty() {
         return delete_secret_hybrid(app, key);
     }
@@ -119,7 +119,7 @@ fn set_secret_hybrid(app: Option<&AppHandle>, key: &str, value: &str) -> Result<
     }
 }
 
-fn get_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<Option<String>, String> {
+pub fn get_secret_hybrid(app: Option<&AppHandle>, key: &str) -> Result<Option<String>, String> {
     // Try keyring first
     if let Ok(entry) = entry_for(key) {
         match entry.get_password() {

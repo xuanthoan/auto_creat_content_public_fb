@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { LayoutDashboard, Sparkles, Images, CalendarDays, Send, BarChart3, Settings, Search, Bell, ChevronDown, TrendingUp, FileText, Heart, MessageCircle, Plus, Clock3, CircleCheck, MoreHorizontal, WandSparkles, Zap, Upload, HardDrive, Film, Trash2, RefreshCw } from 'lucide-react'
+import { LayoutDashboard, Sparkles, Images, CalendarDays, Send, BarChart3, Settings, Search, Bell, ChevronDown, TrendingUp, FileText, Heart, MessageCircle, Plus, Clock3, CircleCheck, MoreHorizontal, WandSparkles, Zap, Upload, HardDrive, Film, Trash2, RefreshCw, X } from 'lucide-react'
 import { invokeDesktop, isDesktop, localAssetUrl } from './tauri.js'
 
 const chartData = [
@@ -86,6 +86,7 @@ function SettingsPage() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
+  const [showPublish, setShowPublish] = useState(false)
 
   const refresh = async () => {
     if (!desktop) return
@@ -98,6 +99,7 @@ function SettingsPage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [pages, setPages] = useState([])
   const saveFb = async () => {
     if (!fbInput.trim()) { setErr('Vui lòng nhập Facebook Token'); return }
     setBusy(true); setErr(''); setMsg('')
@@ -107,7 +109,7 @@ function SettingsPage() {
   const deleteFb = async () => {
     if (!window.confirm('Xóa Facebook Token khỏi kho bảo mật?')) return
     setBusy(true); setErr(''); setMsg('')
-    try { await invokeDesktop('delete_facebook_token'); await refresh(); setMsg('Đã xóa Facebook Token') }
+    try { await invokeDesktop('delete_facebook_token'); await refresh(); setPages([]); setMsg('Đã xóa Facebook Token') }
     catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
   const checkFb = async () => {
@@ -118,6 +120,15 @@ function SettingsPage() {
     try {
       const me = await invokeDesktop('validate_facebook_token', { token: fbInput })
       setMsg(`Token hợp lệ: ${me.name} (ID: ${me.id})`)
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+  const loadPages = async () => {
+    if (!fbInput.trim()) { setErr('Vui lòng nhập User Token để tải danh sách Trang'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      const list = await invokeDesktop('list_facebook_pages', { token: fbInput })
+      setPages(list)
+      setMsg(`Đã tải ${list.length} Trang, token Page đã cache an toàn (không hiện)`)
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
   const saveOmni = async () => {
@@ -146,8 +157,14 @@ function SettingsPage() {
           <input type="password" placeholder={status.hasFacebookToken ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập Facebook User/Page Access Token'} value={fbInput} onChange={e=>setFbInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
           <button className="primary" onClick={saveFb} disabled={!desktop || busy} style={{height:36}}><Zap size={14}/> Lưu</button>
           <button className="outline" onClick={checkFb} disabled={!desktop || busy} style={{height:36}}><Search size={14}/> Kiểm tra</button>
+          <button className="outline" onClick={loadPages} disabled={!desktop || busy} style={{height:36}}><FileText size={14}/> Tải Trang</button>
+          <button className="outline" onClick={()=>setShowPublish(true)} disabled={!desktop || busy || pages.length===0} style={{height:36}}><Send size={14}/> Đăng bài</button>
           <button className="outline" onClick={deleteFb} disabled={!desktop || busy || !status.hasFacebookToken} style={{height:36}}><Trash2 size={14}/> Xóa</button>
         </div>
+        {pages.length > 0 && <div className="panel" style={{marginTop:10, padding:10, background:'#f9fafb'}}>
+          <div style={{fontSize:11, fontWeight:700, marginBottom:6}}>Danh sách Trang ({pages.length}) — Page Token đã cache, không hiện:</div>
+          {pages.map(p => <div key={p.id} style={{display:'flex', justifyContent:'space-between', padding:'6px 8px', background:'#fff', border:'1px solid #eee', borderRadius:6, marginBottom:4}}><span style={{fontSize:11}}><b>{p.name}</b> <span style={{color:'#777'}}>({p.id})</span></span><span style={{fontSize:10, color:'#2e7d32'}}>● token cached</span></div>)}
+        </div>}
       </div>
       <div style={{height:1, background:'#eee'}}/>
       <div>
@@ -164,6 +181,7 @@ function SettingsPage() {
         <span>Windows Credential Manager / macOS Keychain / Linux Secret Service — fallback file <code>secure-credentials.json</code> trong AppData (atomic write). Không bao giờ ghi vào <code>media-index.json</code> hay localStorage.</span>
       </div>
     </div>
+    {showPublish && <PublishModal onClose={()=>setShowPublish(false)} onSuccess={()=>{}} />}
   </section>
 }
 
@@ -345,6 +363,53 @@ function ScheduleModal({ contentId, onClose, onCreated }) {
       </div>
     </div>
   </div>
+}
+
+function PublishModal({ onClose, onSuccess }) {
+  const [pages, setPages] = useState([])
+  const [pageId, setPageId] = useState('')
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [msg, setMsg] = useState('')
+
+  // Load pages when modal opens (use empty token → backend lấy từ keyring)
+  useEffect(() => {
+    invokeDesktop('list_facebook_pages', { token: '' })
+      .then(setPages)
+      .catch(e => setErr(String(e)))
+  }, [])
+
+  const handlePublish = async () => {
+    if (!pageId || !message.trim()) return
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      const res = await invokeDesktop('publish_content', { page_id: pageId, message, image_path: null })
+      setMsg(`Đã đăng thành công (post ID: ${res.id || 'unknown'})`)
+      onSuccess && onSuccess()
+      setTimeout(onClose, 1500)
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  return (
+    <div style={{position:'fixed', inset:0, background:'#0008', display:'grid', placeItems:'center', zIndex:60}} onClick={onClose}>
+      <div className="panel" style={{width:440, padding:24, display:'flex', flexDirection:'column', gap:16}} onClick={e=>e.stopPropagation()}>
+        <h2 style={{margin:0, fontSize:18}}>Đăng bài ngay</h2>
+        {pages.length === 0 && <p style={{fontSize:12, color:'#666'}}>Chưa có Trang nào. Hãy bấm "Tải Trang" ở Cài đặt để tải danh sách.</p>}
+        <select value={pageId} onChange={e=>setPageId(e.target.value)} disabled={busy}>
+          <option value="">-- Chọn Trang --</option>
+          {pages.map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+        </select>
+        <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Nội dung bài đăng..." disabled={busy} style={{width:'100%', minHeight:100, border:'1px solid #e2e1e7', borderRadius:8, padding:12, marginTop:8, fontSize:12, resize:'vertical'}} />
+        {err && <div className="error-box" style={{marginTop:8}}>{err}</div>}
+        {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e', marginTop:8, padding:8}}><CircleCheck size={14}/><span>{msg}</span></div>}
+        <div style={{display:'flex', justifyContent:'flex-end', gap:8}}>
+          <button className="outline" onClick={onClose} disabled={busy} style={{height:36}}><X size={14}/> Đóng</button>
+          <button className="primary" onClick={handlePublish} disabled={busy || !pageId || !message.trim()} style={{height:36}}><Send size={14}/> Đăng ngay</button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ContentWarehousePage() {

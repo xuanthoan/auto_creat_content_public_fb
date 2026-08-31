@@ -359,6 +359,13 @@ mod tests {
 
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = schedule::start_scheduler(handle).await;
+            });
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             list_media,
             import_media,
@@ -383,7 +390,14 @@ pub fn run() {
             schedule::delete_schedule,
             schedule::update_schedule_status,
             schedule::reschedule,
-            facebook::validate_facebook_token
+            facebook::validate_facebook_token,
+            facebook::list_facebook_pages,
+            facebook::publish_content,
+            schedule::get_scheduler_config,
+            schedule::set_scheduler_config,
+            schedule::select_scheduler_page,
+            schedule::start_scheduler,
+            schedule::stop_scheduler
         ])
         .run(tauri::generate_context!())
         .expect("error while running FlowPost AI");

@@ -78,6 +78,134 @@ function MediaLibrary() {
   </section>
 }
 
+function ProvidersPanel() {
+  const desktop = isDesktop()
+  const [providers, setProviders] = useState([])
+  const [form, setForm] = useState({ id: 'custom-provider', displayName: 'Custom provider', baseUrl: 'http://localhost:20128/v1', protocol: 'openai-completions', apiKey: '', models: [] })
+  const [hasApiKey, setHasApiKey] = useState(false)
+  const [modelInput, setModelInput] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const [isEditing, setIsEditing] = useState(false)
+
+  const load = async () => {
+    if (!desktop) return
+    try {
+      const list = await invokeDesktop('list_providers')
+      setProviders(list)
+      if (list.length > 0) {
+        const p = list[0]
+        setForm({ id: p.id, displayName: p.displayName || p.id, baseUrl: p.baseUrl, protocol: p.protocol, apiKey: '', models: p.models || [] })
+        setHasApiKey(!!p.hasApiKey)
+        setIsEditing(true)
+      } else {
+        setIsEditing(false)
+      }
+    } catch (e) { setErr(String(e)) }
+  }
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSave = async () => {
+    if (!form.id.trim()) { setErr('Provider ID không được để trống'); return }
+    if (!form.baseUrl.trim()) { setErr('Base URL không được để trống'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      if (!isEditing) {
+        const payload = { id: form.id.trim().toLowerCase(), displayName: form.displayName || null, baseUrl: form.baseUrl, protocol: form.protocol, models: form.models.length ? form.models : null, apiKey: form.apiKey || null }
+        await invokeDesktop('create_provider', { payload })
+        setMsg('Đã tạo provider')
+      } else {
+        const payload = { displayName: form.displayName || null, baseUrl: form.baseUrl, protocol: form.protocol, models: form.models, apiKey: form.apiKey || null }
+        await invokeDesktop('update_provider', { id: form.id, payload })
+        setMsg('Đã cập nhật provider')
+      }
+      setForm(f => ({ ...f, apiKey: '' }))
+      await load()
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  const handleFetch = async () => {
+    if (!form.id.trim()) { setErr('Chưa có Provider ID'); return }
+    setBusy(true); setErr(''); setMsg('')
+    try {
+      const models = await invokeDesktop('fetch_provider_models', { id: form.id })
+      const merged = Array.from(new Set([...form.models, ...models]))
+      setForm(f => ({ ...f, models: merged }))
+      setMsg(`Đã fetch ${models.length} models`)
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  const addModel = () => {
+    const m = modelInput.trim()
+    if (!m) return
+    if (form.models.includes(m)) { setModelInput(''); return }
+    setForm(f => ({ ...f, models: [...f.models, m] })); setModelInput('')
+  }
+  const removeModel = (m) => setForm(f => ({ ...f, models: f.models.filter(x => x !== m) }))
+
+  return <div style={{display:'flex', flexDirection:'column', gap:14}}>
+    {err && <div className="error-box">{err}</div>}
+    {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
+    <div className="panel" style={{padding:16, display:'flex', flexDirection:'column', gap:12}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+        <div style={{display:'flex', alignItems:'center', gap:8}}><strong style={{fontSize:13}}>{form.displayName || form.id || 'Custom provider'}</strong><span style={{fontSize:10, background:'#f0eefc', color:'#6558d6', padding:'2px 7px', borderRadius:10, fontWeight:700}}>Custom</span><span style={{width:8, height:8, borderRadius:8, background: hasApiKey ? '#4caf50' : '#ccc', display:'inline-block'}}/></div>
+        <div style={{display:'flex', gap:6}}>
+          <button className="outline" onClick={()=>{ setIsEditing(!isEditing); setErr(''); setMsg('') }} disabled={!desktop || busy} style={{height:32, fontSize:11}}>{isEditing ? 'Edit' : 'Create'}</button>
+          <button className="outline" onClick={async()=>{ if(!window.confirm('Xóa provider này?')) return; try{ await invokeDesktop('delete_provider',{id:form.id}); setMsg('Đã xóa'); await load() }catch(e){setErr(String(e))} }} disabled={!desktop || busy || providers.length<=1} title={providers.length<=1 ? 'MVP chỉ có 1 provider, không thể xóa' : ''} style={{height:32, fontSize:11, color: providers.length<=1 ? '#aaa' : '#b55041', borderColor: providers.length<=1 ? '#eee' : '#f6d4cd'}}>Delete</button>
+        </div>
+      </div>
+      <div style={{height:1, background:'#eee'}}/>
+      <div style={{display:'flex', flexDirection:'column', gap:10}}>
+        <div>
+          <label style={{fontSize:11, fontWeight:700}}>Provider ID</label>
+          <input value={form.id} onChange={e=>setForm(f=>({...f, id:e.target.value}))} disabled={isEditing || busy} placeholder="acme-gateway" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12, background: isEditing ? '#f9fafb' : '#fff'}}/>
+          <div style={{fontSize:10, color:'#777', marginTop:4}}>Lowercase identifier, starting with a letter, that uniquely names this provider in requests and as its credential name.</div>
+        </div>
+        <div>
+          <label style={{fontSize:11, fontWeight:700}}>Display name</label>
+          <input value={form.displayName} onChange={e=>setForm(f=>({...f, displayName:e.target.value}))} disabled={busy} placeholder="Display name" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+        </div>
+        <div>
+          <label style={{fontSize:11, fontWeight:700}}>Base URL</label>
+          <input value={form.baseUrl} onChange={e=>setForm(f=>({...f, baseUrl:e.target.value}))} disabled={busy} placeholder="https://gateway.example/v1" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+        </div>
+        <div>
+          <label style={{fontSize:11, fontWeight:700}}>API protocol</label>
+          <select value={form.protocol} onChange={e=>setForm(f=>({...f, protocol:e.target.value}))} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6, fontSize:12}}>
+            <option value="openai-completions">openai-completions</option>
+            <option value="openai-responses" disabled>openai-responses (MVP chưa hỗ trợ)</option>
+            <option value="anthropic-messages" disabled>anthropic-messages (MVP chưa hỗ trợ)</option>
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:11, fontWeight:700}}>API key</label>
+          <input type="password" value={form.apiKey} onChange={e=>setForm(f=>({...f, apiKey:e.target.value}))} disabled={busy} placeholder={hasApiKey ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Enter your API key'} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+        </div>
+        <div style={{height:1, background:'#eee', margin:'6px 0'}}/>
+        <div>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+            <label style={{fontSize:11, fontWeight:700}}>Models</label>
+            <button className="outline" onClick={handleFetch} disabled={!desktop || busy} style={{height:28, fontSize:11}}><RefreshCw size={12}/> Fetch available models</button>
+          </div>
+          <div style={{border:'1px dashed #e2e1e7', borderRadius:8, padding:12, marginTop:6, textAlign:'center', fontSize:11, color:'#777', background:'#fafafa'}}>
+            {form.models.length ? <div style={{display:'flex', flexWrap:'wrap', gap:6, justifyContent:'flex-start'}}>{form.models.map(m=> <span key={m} style={{background:'#fff', border:'1px solid #e2e1e7', borderRadius:16, padding:'4px 10px', fontSize:11, display:'flex', alignItems:'center', gap:6}}>{m} <button onClick={()=>removeModel(m)} style={{border:0, background:'transparent', cursor:'pointer', padding:0}}><X size={12}/></button></span>)}</div> : 'No models will be shown in the selector. Unlisted IDs still be sent directly.'}
+          </div>
+          <div style={{display:'flex', gap:8, marginTop:8}}>
+            <input value={modelInput} onChange={e=>setModelInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){e.preventDefault(); addModel()} }} disabled={busy} placeholder="model-id, ví dụ xoay-vong-worker-web-128k" style={{flex:1, height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
+            <button className="outline" onClick={addModel} disabled={busy || !modelInput.trim()} style={{height:32, fontSize:11}}>Add model</button>
+          </div>
+        </div>
+      </div>
+      <div style={{display:'flex', justifyContent:'flex-end', gap:8, marginTop:6}}>
+        <button className="outline" onClick={()=>{ setErr(''); setMsg(''); load() }} disabled={busy} style={{height:36}}>Cancel</button>
+        <button className="primary" onClick={handleSave} disabled={!desktop || busy} style={{height:36}}><WandSparkles size={14}/> {isEditing ? 'Update provider' : 'Create provider'}</button>
+      </div>
+    </div>
+  </div>
+}
+
 function SettingsPage() {
   const desktop = isDesktop()
   const [fbInput, setFbInput] = useState('')
@@ -100,6 +228,7 @@ function SettingsPage() {
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [pages, setPages] = useState([])
+  const [subTab, setSubTab] = useState('Providers')
   const saveFb = async () => {
     if (!fbInput.trim()) { setErr('Vui lòng nhập Facebook Token'); return }
     setBusy(true); setErr(''); setMsg('')
@@ -149,7 +278,11 @@ function SettingsPage() {
     {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chức năng bảo mật chỉ hoạt động trong bản Tauri.</span></div></div>}
     {err && <div className="error-box">{err}</div>}
     {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
-    <div className="panel" style={{padding:20, display:'flex', flexDirection:'column', gap:18}}>
+    <div style={{display:'flex', gap:8, marginBottom:14}}>
+      <button className={subTab==='Kết nối'?'primary':'outline'} onClick={()=>setSubTab('Kết nối')} style={{height:32}}><HardDrive size={14}/> Kết nối</button>
+      <button className={subTab==='Providers'?'primary':'outline'} onClick={()=>setSubTab('Providers')} style={{height:32}}><WandSparkles size={14}/> Providers</button>
+    </div>
+    {subTab==='Kết nối' ? <div className="panel" style={{padding:20, display:'flex', flexDirection:'column', gap:18}}>
       <div>
         <h2 style={{fontSize:14, margin:'0 0 8px'}}>Facebook Token</h2>
         <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Dùng cho Graph API đăng bài. Token được mã hóa trong OS vault. Frontend chỉ biết trạng thái <b>{status.hasFacebookToken ? '●●●● đã lưu' : 'chưa lưu'}</b>.</p>
@@ -168,8 +301,8 @@ function SettingsPage() {
       </div>
       <div style={{height:1, background:'#eee'}}/>
       <div>
-        <h2 style={{fontSize:14, margin:'0 0 8px'}}>OpenAI Compatible Provider API Key</h2>
-        <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Dùng cho AI Content. Key được lưu an toàn, Rust backend sẽ làm proxy gọi API, không lộ qua DevTools.</p>
+        <h2 style={{fontSize:14, margin:'0 0 8px'}}>OpenAI Compatible Provider API Key (Legacy)</h2>
+        <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Legacy single-key. Đã chuyển sang tab Providers — vui lòng dùng Providers để cấu hình Base URL, Model, Protocol.</p>
         <div style={{display:'flex', gap:8}}>
           <input type="password" placeholder={status.hasAiProviderKey ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập OpenAI Compatible Provider API Key'} value={aiProviderInput} onChange={e=>setAiProviderInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
           <button className="primary" onClick={saveAiProvider} disabled={!desktop || busy} style={{height:36}}><WandSparkles size={14}/> Lưu</button>
@@ -180,7 +313,7 @@ function SettingsPage() {
         <strong style={{display:'flex', alignItems:'center', gap:6}}><HardDrive size={14}/> Lưu trữ: </strong>
         <span>Windows Credential Manager / macOS Keychain / Linux Secret Service — fallback file <code>secure-credentials.json</code> trong AppData (atomic write). Không bao giờ ghi vào <code>media-index.json</code> hay localStorage.</span>
       </div>
-    </div>
+    </div> : <ProvidersPanel />}
     {showPublish && <PublishModal onClose={()=>setShowPublish(false)} onSuccess={()=>{}} />}
   </section>
 }
@@ -190,8 +323,16 @@ function SettingsStatus() {
   const desktop = isDesktop()
   useEffect(() => {
     if (!desktop) return
-    invokeDesktop('credential_status').then(setStatus).catch(()=>{})
-    const id = setInterval(() => invokeDesktop('credential_status').then(setStatus).catch(()=>{}), 4000)
+    const load = async () => {
+      try {
+        const s = await invokeDesktop('credential_status')
+        let hasAi = s.hasAiProviderKey
+        try { const active = await invokeDesktop('get_active_provider'); hasAi = hasAi || !!active.hasApiKey } catch {}
+        setStatus({ hasFacebookToken: s.hasFacebookToken, hasAiProviderKey: hasAi })
+      } catch {}
+    }
+    load()
+    const id = setInterval(load, 4000)
     return () => clearInterval(id)
   }, [desktop])
   const hasAny = status.hasFacebookToken || status.hasAiProviderKey

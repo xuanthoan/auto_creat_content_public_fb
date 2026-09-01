@@ -3,7 +3,7 @@ import { invoke, isTauri } from './helpers/tauri';
 import { ensureProvider, DEFAULT_MODEL } from './helpers/provider';
 
 test.describe('Providers E2E (real server)', () => {
-  test.skip(!process.env.E2E_API_KEY && !process.env.CI, 'E2E_API_KEY not set, skipping real server test. Set E2E_API_KEY=sk-e560... to run.');
+  test.skip(!process.env.E2E_API_KEY && !process.env.CI, 'E2E_API_KEY not set, skipping real server test. Set E2E_API_KEY=sk-... to run.');
 
   test.beforeEach(async ({ page }) => {
     await page.goto('/');

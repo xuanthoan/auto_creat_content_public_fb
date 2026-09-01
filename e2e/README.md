@@ -3,7 +3,7 @@
 ## Chạy server thật trước
 ```bash
 # Server phải lắng tại http://localhost:20128/v1
-curl -H "Authorization: Bearer sk-REPLACE_WITH_YOUR_KEY" http://localhost:20128/v1/models
+curl -H "Authorization: Bearer $E2E_API_KEY" http://localhost:20128/v1/models
 ```
 
 ## Chạy E2E

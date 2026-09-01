@@ -4,7 +4,7 @@ import type { Page } from '@playwright/test';
 export const DEFAULT_ID = 'custom-provider';
 export const DEFAULT_BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:20128/v1';
 export const DEFAULT_MODEL = process.env.E2E_MODEL || 'xoay-vong-worker-web-128k';
-export const DEFAULT_API_KEY = process.env.E2E_API_KEY || 'sk-REPLACE_WITH_YOUR_KEY';
+export const DEFAULT_API_KEY = process.env.E2E_API_KEY || '';
 
 export async function ensureProvider(
   page: Page,
@@ -13,6 +13,7 @@ export async function ensureProvider(
   const id = opts.id || DEFAULT_ID;
   const baseUrl = opts.baseUrl || DEFAULT_BASE_URL;
   const apiKey = opts.apiKey || DEFAULT_API_KEY;
+  if (!apiKey) throw new Error('E2E_API_KEY not set. Set env E2E_API_KEY=sk-... before running E2E.');
   const models = opts.models || [DEFAULT_MODEL];
 
   // Try get active, then update. If no provider file, update will auto-create default.

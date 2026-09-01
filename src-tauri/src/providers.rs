@@ -239,12 +239,13 @@ fn read_providers_file<R: Runtime>(app: &AppHandle<R>) -> Result<ProvidersFile, 
     let path = providers_path(app)?;
     if !path.exists() {
         let file = default_file();
-        // Migrate legacy ai_provider_key if exists
+        // Migrate legacy ai_provider_key if exists (giữ 1 release, xóa key cũ sau copy)
         if let Ok(Some(legacy)) = crate::security::get_secret_hybrid(Some(app), "ai_provider_key") {
             if !legacy.trim().is_empty() {
                 let new_key = api_key_name(DEFAULT_PROVIDER_ID);
-                // copy to new key, best effort
+                // copy to new key, best effort, rồi xóa key cũ
                 let _ = crate::security::set_secret_hybrid(Some(app), &new_key, &legacy);
+                let _ = crate::security::delete_secret_hybrid(Some(app), "ai_provider_key");
             }
         }
         write_providers_file(app, &file)?;

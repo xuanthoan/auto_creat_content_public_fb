@@ -209,8 +209,7 @@ function ProvidersPanel() {
 function SettingsPage() {
   const desktop = isDesktop()
   const [fbInput, setFbInput] = useState('')
-  const [aiProviderInput, setAiProviderInput] = useState('')
-  const [status, setStatus] = useState({ hasFacebookToken: false, hasAiProviderKey: false })
+  const [status, setStatus] = useState({ hasFacebookToken: false })
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
@@ -260,19 +259,6 @@ function SettingsPage() {
       setMsg(`Đã tải ${list.length} Trang, token Page đã cache an toàn (không hiện)`)
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
-  const saveAiProvider = async () => {
-    if (!aiProviderInput.trim()) { setErr('Vui lòng nhập OpenAI Compatible Provider API Key'); return }
-    setBusy(true); setErr(''); setMsg('')
-    try { await invokeDesktop('set_ai_provider_key', { key: aiProviderInput }); setAiProviderInput(''); await refresh(); setMsg('Đã lưu OpenAI Compatible Provider Key') }
-    catch (e) { setErr(String(e)) } finally { setBusy(false) }
-  }
-  const deleteAiProvider = async () => {
-    if (!window.confirm('Xóa OpenAI Compatible Provider Key khỏi kho bảo mật?')) return
-    setBusy(true); setErr(''); setMsg('')
-    try { await invokeDesktop('delete_ai_provider_key'); await refresh(); setMsg('Đã xóa OpenAI Compatible Provider Key') }
-    catch (e) { setErr(String(e)) } finally { setBusy(false) }
-  }
-
   return <section className="media-page">
     <div className="page-heading"><div><p>BẢO MẬT CỤC BỘ</p><h1>Cài đặt</h1><span>Token và API key được lưu trong Credential Manager / Keychain của hệ điều hành, không bao giờ lưu trong frontend hay file JSON.</span></div></div>
     {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chức năng bảo mật chỉ hoạt động trong bản Tauri.</span></div></div>}
@@ -300,15 +286,6 @@ function SettingsPage() {
         </div>}
       </div>
       <div style={{height:1, background:'#eee'}}/>
-      <div>
-        <h2 style={{fontSize:14, margin:'0 0 8px'}}>OpenAI Compatible Provider API Key (Legacy)</h2>
-        <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Legacy single-key. Đã chuyển sang tab Providers — vui lòng dùng Providers để cấu hình Base URL, Model, Protocol.</p>
-        <div style={{display:'flex', gap:8}}>
-          <input type="password" placeholder={status.hasAiProviderKey ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập OpenAI Compatible Provider API Key'} value={aiProviderInput} onChange={e=>setAiProviderInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
-          <button className="primary" onClick={saveAiProvider} disabled={!desktop || busy} style={{height:36}}><WandSparkles size={14}/> Lưu</button>
-          <button className="outline" onClick={deleteAiProvider} disabled={!desktop || busy || !status.hasAiProviderKey} style={{height:36}}><Trash2 size={14}/> Xóa</button>
-        </div>
-      </div>
       <div style={{background:'#f7f6fe', border:'1px solid #eceafa', borderRadius:8, padding:12, fontSize:11, color:'#5e58a6'}}>
         <strong style={{display:'flex', alignItems:'center', gap:6}}><HardDrive size={14}/> Lưu trữ: </strong>
         <span>Windows Credential Manager / macOS Keychain / Linux Secret Service — fallback file <code>secure-credentials.json</code> trong AppData (atomic write). Không bao giờ ghi vào <code>media-index.json</code> hay localStorage.</span>
@@ -326,8 +303,8 @@ function SettingsStatus() {
     const load = async () => {
       try {
         const s = await invokeDesktop('credential_status')
-        let hasAi = s.hasAiProviderKey
-        try { const active = await invokeDesktop('get_active_provider'); hasAi = hasAi || !!active.hasApiKey } catch {}
+        let hasAi = false
+        try { const active = await invokeDesktop('get_active_provider'); hasAi = !!active.hasApiKey } catch {}
         setStatus({ hasFacebookToken: s.hasFacebookToken, hasAiProviderKey: hasAi })
       } catch {}
     }

@@ -7,7 +7,6 @@ use tauri::{AppHandle, Manager, Runtime};
 
 const SERVICE: &str = "vn.flowpost.desktop";
 const FB_KEY: &str = "facebook_token";
-const AI_PROVIDER_KEY: &str = "ai_provider_key";
 
 fn entry_for(key: &str) -> Result<Entry, String> {
     Entry::new(SERVICE, key).map_err(|e| e.to_string())
@@ -190,7 +189,6 @@ fn has_secret_hybrid<R: Runtime>(app: Option<&AppHandle<R>>, key: &str) -> Resul
 #[serde(rename_all = "camelCase")]
 pub struct CredentialStatus {
     pub has_facebook_token: bool,
-    pub has_ai_provider_key: bool,
 }
 
 #[tauri::command]
@@ -209,25 +207,9 @@ pub fn delete_facebook_token(app: AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn set_ai_provider_key(app: AppHandle, key: String) -> Result<(), String> {
-    set_secret_hybrid(Some(&app), AI_PROVIDER_KEY, &key)
-}
-
-#[tauri::command]
-pub fn get_ai_provider_key(app: AppHandle) -> Result<Option<String>, String> {
-    get_secret_hybrid(Some(&app), AI_PROVIDER_KEY)
-}
-
-#[tauri::command]
-pub fn delete_ai_provider_key(app: AppHandle) -> Result<(), String> {
-    delete_secret_hybrid(Some(&app), AI_PROVIDER_KEY)
-}
-
-#[tauri::command]
 pub fn credential_status(app: AppHandle) -> Result<CredentialStatus, String> {
     Ok(CredentialStatus {
         has_facebook_token: has_secret_hybrid(Some(&app), FB_KEY)?,
-        has_ai_provider_key: has_secret_hybrid(Some(&app), AI_PROVIDER_KEY)?,
     })
 }
 
@@ -309,7 +291,7 @@ mod tests {
         // It ensures that even if keyring is broken, fallback provides persistence across "entries"
         let dir = unique_temp_dir("flowpost_hybrid");
         let fb_key = "facebook_token";
-        let ai_provider_key = "ai_provider_key";
+        let ai_provider_key = "ai_provider_custom-provider_key";
         // Simulate set via hybrid with no keyring (fallback only)
         set_fallback_at(&dir, fb_key, "fb_secret").unwrap();
         set_fallback_at(&dir, ai_provider_key, "ai_provider_secret").unwrap();

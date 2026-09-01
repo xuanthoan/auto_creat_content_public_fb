@@ -3,8 +3,6 @@ use serde_json::Value;
 use tauri::{AppHandle, Runtime};
 use std::time::Duration;
 
-const AI_BASE_URL: &str = "http://localhost:20128/v1";
-const AI_MODEL: &str = "xoay-vong-worker-web-128k";
 const AI_TIMEOUT_SECS: u64 = 15;
 
 #[derive(Deserialize)]
@@ -98,18 +96,17 @@ async fn call_ai_provider(
     custom_style: Option<&str>,
     length: Option<&str>,
 ) -> Result<String, String> {
-    let key = crate::security::get_secret_hybrid(Some(app), "ai_provider_key")
-        .ok()
-        .flatten()
-        .ok_or("Chưa cấu hình API key. Vui lòng vào Cài đặt để thêm key.")?;
-    if key.trim().is_empty() {
-        return Err("API key trống, vui lòng kiểm tra lại.".into());
-    }
-
+    let (provider, key) = crate::providers::resolve_active_provider(app)?;
     let system_msg = build_system_message(style, custom_style);
     let max_tokens = max_tokens_for_length(length);
+    let model = provider
+        .models
+        .first()
+        .cloned()
+        .unwrap_or_else(|| crate::providers::DEFAULT_MODEL.to_string());
+    let base_url = provider.base_url.trim_end_matches('/').to_string();
     let request = ChatCompletionRequest {
-        model: AI_MODEL,
+        model: &model,
         messages: vec![
             Message { role: "system", content: &system_msg },
             Message { role: "user", content: prompt },
@@ -124,7 +121,7 @@ async fn call_ai_provider(
         .build()
         .map_err(|e| format!("Không thể khởi tạo HTTP client: {}", e))?;
 
-    let url = format!("{}/chat/completions", AI_BASE_URL);
+    let url = format!("{}/chat/completions", base_url);
     let resp = client
         .post(&url)
         .header("Authorization", format!("Bearer {}", key))
@@ -299,7 +296,7 @@ mod tests {
     #[tokio::test]
     async fn test_chat_completion_request_serialization() {
         let request = ChatCompletionRequest {
-            model: AI_MODEL,
+            model: crate::providers::DEFAULT_MODEL,
             messages: vec![
                 Message { role: "system", content: "test system" },
                 Message { role: "user", content: "test user" },

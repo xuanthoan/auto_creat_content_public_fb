@@ -3,13 +3,13 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager, Runtime};
 
-const DEFAULT_BASE_URL: &str = "http://localhost:20128/v1";
-const DEFAULT_MODEL: &str = "xoay-vong-worker-web-128k";
-const DEFAULT_PROVIDER_ID: &str = "custom-provider";
-const DEFAULT_DISPLAY_NAME: &str = "Custom provider";
-const VALID_PROTOCOLS: &[&str] = &["openai-completions", "openai-responses", "anthropic-messages"];
+pub const DEFAULT_BASE_URL: &str = "http://localhost:20128/v1";
+pub const DEFAULT_MODEL: &str = "xoay-vong-worker-web-128k";
+pub const DEFAULT_PROVIDER_ID: &str = "custom-provider";
+pub const DEFAULT_DISPLAY_NAME: &str = "Custom provider";
+pub const VALID_PROTOCOLS: &[&str] = &["openai-completions", "openai-responses", "anthropic-messages"];
 // MVP only enables openai-completions
-const MVP_ENABLED_PROTOCOL: &str = "openai-completions";
+pub const MVP_ENABLED_PROTOCOL: &str = "openai-completions";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -180,6 +180,59 @@ fn default_file() -> ProvidersFile {
         active_provider_id: p.id.clone(),
         providers: vec![p],
     }
+}
+
+pub fn resolve_active_provider<R: Runtime>(
+    app: &AppHandle<R>,
+) -> Result<(Provider, String), String> {
+    let file = read_providers_file(app)?;
+    let provider = file
+        .providers
+        .iter()
+        .find(|p| p.id == file.active_provider_id)
+        .cloned()
+        .ok_or("Không tìm thấy active provider")?;
+    if provider.protocol != MVP_ENABLED_PROTOCOL {
+        return Err(format!(
+            "Protocol '{}' chưa hỗ trợ ở MVP, chỉ '{}' được enable",
+            provider.protocol, MVP_ENABLED_PROTOCOL
+        ));
+    }
+    let key = crate::security::get_secret_hybrid(Some(app), &api_key_name(&provider.id))
+        .ok()
+        .flatten()
+        .ok_or("Chưa cấu hình API key. Vui lòng vào Cài đặt để thêm key.")?;
+    if key.trim().is_empty() {
+        return Err("API key trống, vui lòng kiểm tra lại.".into());
+    }
+    Ok((provider, key))
+}
+
+#[cfg(test)]
+pub fn resolve_active_provider_at(
+    dir: &std::path::Path,
+    key_map: &std::collections::HashMap<String, String>,
+) -> Result<(Provider, String), String> {
+    let path = providers_path_for_test(dir);
+    let file = read_providers_file_at(&path)?;
+    let provider = file
+        .providers
+        .iter()
+        .find(|p| p.id == file.active_provider_id)
+        .cloned()
+        .ok_or("Không tìm thấy active provider")?;
+    if provider.protocol != MVP_ENABLED_PROTOCOL {
+        return Err(format!("Protocol '{}' chưa hỗ trợ", provider.protocol));
+    }
+    let key_name = api_key_name(&provider.id);
+    let key = key_map
+        .get(&key_name)
+        .cloned()
+        .ok_or("Chưa cấu hình API key")?;
+    if key.trim().is_empty() {
+        return Err("API key trống".into());
+    }
+    Ok((provider, key))
 }
 
 fn read_providers_file<R: Runtime>(app: &AppHandle<R>) -> Result<ProvidersFile, String> {
@@ -376,18 +429,68 @@ pub fn delete_provider(app: AppHandle, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn fetch_provider_models(app: AppHandle, id: String) -> Result<Vec<String>, String> {
+pub async fn fetch_provider_models(app: AppHandle, id: String) -> Result<Vec<String>, String> {
     let file = read_providers_file(&app)?;
     let provider = file
         .providers
         .iter()
         .find(|p| p.id == id.trim().to_lowercase())
+        .cloned()
         .ok_or(format!("Không tìm thấy provider '{}'", id))?;
-    // MVP stub: try to fetch via GET baseUrl/models, but if fails return current models
-    // For now just return stored models to keep C1 minimal; full fetch will be in C2
-    let _ = provider;
-    let _ = &app;
-    Err("Fetch models chưa hỗ trợ ở C1 MVP. Vui lòng Add model thủ công. Sẽ implement GET /v1/models ở C2.".into())
+    let key = crate::security::get_secret_hybrid(Some(&app), &api_key_name(&provider.id))
+        .ok()
+        .flatten()
+        .ok_or("Chưa cấu hình API key cho provider này".to_string())?;
+    if key.trim().is_empty() {
+        return Err("API key trống".into());
+    }
+    let base = provider.base_url.trim_end_matches('/').to_string();
+    let url = format!("{}/models", base);
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| format!("Không thể khởi tạo HTTP client: {}", e))?;
+    let resp = client
+        .get(&url)
+        .header("Authorization", format!("Bearer {}", key))
+        .send()
+        .await
+        .map_err(|e| format!("Không thể kết nối provider để fetch models: {}", e))?;
+    let status = resp.status().as_u16();
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+    if !(200..300).contains(&status) {
+        return Err(format!("Lỗi fetch models ({}): {}", status, &body.chars().take(300).collect::<String>()));
+    }
+    // Try OpenAI format {"data":[{"id":"model-x"},...]} or {"object":"list","data":[...]}
+    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&body) {
+        if let Some(data) = json.get("data").and_then(|d| d.as_array()) {
+            let mut models: Vec<String> = data
+                .iter()
+                .filter_map(|v| {
+                    v.get("id")
+                        .and_then(|id| id.as_str())
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                })
+                .collect();
+            if !models.is_empty() {
+                models.sort();
+                models.dedup();
+                return Ok(models);
+            }
+        }
+        // fallback: if body is array directly
+        if let Some(arr) = json.as_array() {
+            let models: Vec<String> = arr
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+            if !models.is_empty() {
+                return Ok(models);
+            }
+        }
+    }
+    Err(format!("Không parse được danh sách models: {}", &body.chars().take(300).collect::<String>()))
 }
 
 #[cfg(test)]
@@ -503,5 +606,60 @@ mod tests {
     fn test_api_key_name() {
         assert_eq!(api_key_name("custom-provider"), "ai_provider_custom-provider_key");
         assert_eq!(api_key_name("acme-gateway"), "ai_provider_acme-gateway_key");
+    }
+
+    #[test]
+    fn test_resolve_active_provider_at_default() {
+        let dir = unique_temp_dir("flowpost_resolve_default");
+        let path = providers_path_for_test(&dir);
+        let file = default_file();
+        write_providers_at(&path, &file).unwrap();
+        let mut key_map = std::collections::HashMap::new();
+        key_map.insert(
+            api_key_name("custom-provider"),
+            "test_key_123".to_string(),
+        );
+        let (provider, key) = resolve_active_provider_at(&dir, &key_map).unwrap();
+        assert_eq!(provider.id, "custom-provider");
+        assert_eq!(provider.base_url, DEFAULT_BASE_URL);
+        assert_eq!(key, "test_key_123");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_resolve_active_provider_at_custom() {
+        let dir = unique_temp_dir("flowpost_resolve_custom");
+        let path = providers_path_for_test(&dir);
+        let file = ProvidersFile {
+            providers: vec![Provider {
+                id: "acme-gateway".into(),
+                display_name: "Acme Gateway".into(),
+                base_url: "https://gateway.example/v1".into(),
+                protocol: "openai-completions".into(),
+                models: vec!["model-a".into(), "model-b".into()],
+            }],
+            active_provider_id: "acme-gateway".into(),
+        };
+        write_providers_at(&path, &file).unwrap();
+        let mut key_map = std::collections::HashMap::new();
+        key_map.insert(api_key_name("acme-gateway"), "secret_acme".to_string());
+        let (provider, key) = resolve_active_provider_at(&dir, &key_map).unwrap();
+        assert_eq!(provider.id, "acme-gateway");
+        assert_eq!(provider.base_url, "https://gateway.example/v1");
+        assert_eq!(provider.models, vec!["model-a", "model-b"]);
+        assert_eq!(key, "secret_acme");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn test_resolve_missing_key_fails() {
+        let dir = unique_temp_dir("flowpost_resolve_missing");
+        let path = providers_path_for_test(&dir);
+        let file = default_file();
+        write_providers_at(&path, &file).unwrap();
+        let key_map = std::collections::HashMap::new();
+        let err = resolve_active_provider_at(&dir, &key_map).unwrap_err();
+        assert!(err.contains("API key"));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

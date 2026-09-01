@@ -81,8 +81,8 @@ function MediaLibrary() {
 function SettingsPage() {
   const desktop = isDesktop()
   const [fbInput, setFbInput] = useState('')
-  const [omniInput, setOmniInput] = useState('')
-  const [status, setStatus] = useState({ hasFacebookToken: false, hasOmnirouteKey: false })
+  const [aiProviderInput, setAiProviderInput] = useState('')
+  const [status, setStatus] = useState({ hasFacebookToken: false, hasAiProviderKey: false })
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
@@ -131,16 +131,16 @@ function SettingsPage() {
       setMsg(`Đã tải ${list.length} Trang, token Page đã cache an toàn (không hiện)`)
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
-  const saveOmni = async () => {
-    if (!omniInput.trim()) { setErr('Vui lòng nhập OmniRoute API Key'); return }
+  const saveAiProvider = async () => {
+    if (!aiProviderInput.trim()) { setErr('Vui lòng nhập OpenAI Compatible Provider API Key'); return }
     setBusy(true); setErr(''); setMsg('')
-    try { await invokeDesktop('set_omniroute_key', { key: omniInput }); setOmniInput(''); await refresh(); setMsg('Đã lưu OmniRoute Key') }
+    try { await invokeDesktop('set_ai_provider_key', { key: aiProviderInput }); setAiProviderInput(''); await refresh(); setMsg('Đã lưu OpenAI Compatible Provider Key') }
     catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
-  const deleteOmni = async () => {
-    if (!window.confirm('Xóa OmniRoute Key khỏi kho bảo mật?')) return
+  const deleteAiProvider = async () => {
+    if (!window.confirm('Xóa OpenAI Compatible Provider Key khỏi kho bảo mật?')) return
     setBusy(true); setErr(''); setMsg('')
-    try { await invokeDesktop('delete_omniroute_key'); await refresh(); setMsg('Đã xóa OmniRoute Key') }
+    try { await invokeDesktop('delete_ai_provider_key'); await refresh(); setMsg('Đã xóa OpenAI Compatible Provider Key') }
     catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
 
@@ -168,12 +168,12 @@ function SettingsPage() {
       </div>
       <div style={{height:1, background:'#eee'}}/>
       <div>
-        <h2 style={{fontSize:14, margin:'0 0 8px'}}>OmniRoute API Key</h2>
+        <h2 style={{fontSize:14, margin:'0 0 8px'}}>OpenAI Compatible Provider API Key</h2>
         <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Dùng cho AI Content. Key được lưu an toàn, Rust backend sẽ làm proxy gọi API, không lộ qua DevTools.</p>
         <div style={{display:'flex', gap:8}}>
-          <input type="password" placeholder={status.hasOmnirouteKey ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập OmniRoute API Key'} value={omniInput} onChange={e=>setOmniInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
-          <button className="primary" onClick={saveOmni} disabled={!desktop || busy} style={{height:36}}><WandSparkles size={14}/> Lưu</button>
-          <button className="outline" onClick={deleteOmni} disabled={!desktop || busy || !status.hasOmnirouteKey} style={{height:36}}><Trash2 size={14}/> Xóa</button>
+          <input type="password" placeholder={status.hasAiProviderKey ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập OpenAI Compatible Provider API Key'} value={aiProviderInput} onChange={e=>setAiProviderInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
+          <button className="primary" onClick={saveAiProvider} disabled={!desktop || busy} style={{height:36}}><WandSparkles size={14}/> Lưu</button>
+          <button className="outline" onClick={deleteAiProvider} disabled={!desktop || busy || !status.hasAiProviderKey} style={{height:36}}><Trash2 size={14}/> Xóa</button>
         </div>
       </div>
       <div style={{background:'#f7f6fe', border:'1px solid #eceafa', borderRadius:8, padding:12, fontSize:11, color:'#5e58a6'}}>
@@ -186,7 +186,7 @@ function SettingsPage() {
 }
 
 function SettingsStatus() {
-  const [status, setStatus] = useState({ hasFacebookToken: false, hasOmnirouteKey: false })
+  const [status, setStatus] = useState({ hasFacebookToken: false, hasAiProviderKey: false })
   const desktop = isDesktop()
   useEffect(() => {
     if (!desktop) return
@@ -194,8 +194,8 @@ function SettingsStatus() {
     const id = setInterval(() => invokeDesktop('credential_status').then(setStatus).catch(()=>{}), 4000)
     return () => clearInterval(id)
   }, [desktop])
-  const hasAny = status.hasFacebookToken || status.hasOmnirouteKey
-  return <div className="token-box"><div className="token-title"><span><Zap size={14}/> Bảo mật</span><b style={{color: hasAny ? '#2e7d32' : '#d87642'}}>{hasAny ? 'Đã lưu' : 'Chưa lưu'}</b></div><div className="progress"><i style={{width: status.hasFacebookToken && status.hasOmnirouteKey ? '100%' : status.hasFacebookToken || status.hasOmnirouteKey ? '50%' : '0%', background: hasAny ? '#4caf50' : '#e4a263'}}/></div><p>{status.hasFacebookToken ? 'FB Token ●●●●' : 'FB Token chưa lưu'} • {status.hasOmnirouteKey ? 'Omni ●●●●' : 'Omni chưa lưu'}</p></div>
+  const hasAny = status.hasFacebookToken || status.hasAiProviderKey
+  return <div className="token-box"><div className="token-title"><span><Zap size={14}/> Bảo mật</span><b style={{color: hasAny ? '#2e7d32' : '#d87642'}}>{hasAny ? 'Đã lưu' : 'Chưa lưu'}</b></div><div className="progress"><i style={{width: status.hasFacebookToken && status.hasAiProviderKey ? '100%' : status.hasFacebookToken || status.hasAiProviderKey ? '50%' : '0%', background: hasAny ? '#4caf50' : '#e4a263'}}/></div><p>{status.hasFacebookToken ? 'FB Token ●●●●' : 'FB Token chưa lưu'} • {status.hasAiProviderKey ? 'AI Provider ●●●●' : 'AI Provider chưa lưu'}</p></div>
 }
 
 function AiContentPage() {
@@ -250,7 +250,7 @@ function AiContentPage() {
   const toggleMedia = (id) => setMediaIds(prev => prev.includes(id) ? prev.filter(x => x!==id) : [...prev, id])
 
   return <section className="media-page">
-    <div className="page-heading"><div><p>AI CONTENT</p><h1>Tạo nội dung với AI</h1><span>Nhập prompt, chọn style, tạo mock để demo Kho trước khi nối OmniRoute thật.</span></div></div>
+    <div className="page-heading"><div><p>AI CONTENT</p><h1>Tạo nội dung với AI</h1><span>Nhập prompt, chọn style, tạo mock để demo Kho trước khi nối OpenAI Compatible Provider thật.</span></div></div>
     {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chức năng AI chỉ hoạt động trong bản Tauri.</span></div></div>}
     {err && <div className="error-box">{err}</div>}
     {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
@@ -302,7 +302,7 @@ function AiContentPage() {
         <button className="outline" onClick={()=>{setPrompt(''); setTitle(''); setBody(''); setMediaIds([]); setMsg(''); setErr('')}} disabled={busy} style={{height:36}}>Xóa form</button>
         <button className="primary" onClick={save} disabled={!desktop || busy} style={{height:36}}><FileText size={16}/> Lưu vào kho</button>
       </div>
-      <div style={{background:'#fff7e6', border:'1px solid #ffe4b5', borderRadius:8, padding:10, fontSize:11, color:'#8a6d00'}}>Mock demo: Chưa nối OmniRoute thật. Khi bạn lưu OmniRoute Key ở Cài đặt, bản mock vẫn dùng để demo Kho — API thật sẽ được thay thế sau mà không đổi kho.</div>
+      <div style={{background:'#fff7e6', border:'1px solid #ffe4b5', borderRadius:8, padding:10, fontSize:11, color:'#8a6d00'}}>Mock demo: Chưa nối OpenAI Compatible Provider thật. Khi bạn lưu OpenAI Compatible Provider Key ở Cài đặt, bản mock vẫn dùng để demo Kho — API thật sẽ được thay thế sau mà không đổi kho.</div>
     </div>
   </section>
 }

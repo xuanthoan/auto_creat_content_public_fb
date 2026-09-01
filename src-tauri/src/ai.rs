@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Runtime};
 use std::time::Duration;
 
 const AI_BASE_URL: &str = "http://localhost:20128/v1";
@@ -83,11 +83,20 @@ fn parse_ai_response(content: &str) -> (String, String) {
     (title, body)
 }
 
+fn max_tokens_for_length(length: Option<&str>) -> u32 {
+    match length {
+        Some("Ngắn") => 250,
+        Some("Dài") => 800,
+        _ => 500,
+    }
+}
+
 async fn call_ai_provider(
     app: &AppHandle<impl Runtime>,
     prompt: &str,
     style: &str,
     custom_style: Option<&str>,
+    length: Option<&str>,
 ) -> Result<String, String> {
     let key = crate::security::get_secret_hybrid(Some(app), "ai_provider_key")
         .ok()
@@ -98,13 +107,14 @@ async fn call_ai_provider(
     }
 
     let system_msg = build_system_message(style, custom_style);
+    let max_tokens = max_tokens_for_length(length);
     let request = ChatCompletionRequest {
         model: AI_MODEL,
         messages: vec![
             Message { role: "system", content: &system_msg },
             Message { role: "user", content: prompt },
         ],
-        max_tokens: 500,
+        max_tokens,
         temperature: 0.7,
     };
     let body = serde_json::to_string(&request).map_err(|e| e.to_string())?;
@@ -166,7 +176,7 @@ pub async fn generate_content<R: Runtime>(app: AppHandle<R>, payload: GeneratePa
         return Err("Vui lòng chọn style".into());
     }
 
-    let content = call_ai_provider(&app, &payload.prompt, &payload.style, payload.custom_style.as_deref()).await?;
+    let content = call_ai_provider(&app, &payload.prompt, &payload.style, payload.custom_style.as_deref(), payload.length.as_deref()).await?;
     let (title, body) = parse_ai_response(&content);
 
     Ok(GenerateResult {
@@ -300,5 +310,14 @@ mod tests {
         let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains("xoay-vong-worker-web-128k"));
         assert!(json.contains("test user"));
+    }
+
+    #[test]
+    fn test_max_tokens_for_length() {
+        assert_eq!(max_tokens_for_length(None), 500);
+        assert_eq!(max_tokens_for_length(Some("Vừa")), 500);
+        assert_eq!(max_tokens_for_length(Some("Ngắn")), 250);
+        assert_eq!(max_tokens_for_length(Some("Dài")), 800);
+        assert_eq!(max_tokens_for_length(Some("unknown")), 500);
     }
 }

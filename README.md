@@ -42,4 +42,4 @@ Bộ cài được tạo trong `src-tauri/target/release/bundle/`. Định dạn
 
 Rust backend tạo thư mục `media` bên trong app data directory của hệ điều hành và lưu `media-index.json` tại cùng vị trí. Mỗi file được đổi sang UUID khi sao chép để tránh trùng tên; tên gốc, loại file, dung lượng và thời điểm nhập vẫn được giữ trong index.
 
-Token Facebook và API key OmniRoute **không nên** lưu trong frontend hoặc file index này. Giai đoạn tiếp theo nên dùng secure credential store của hệ điều hành và chỉ chuyển secret sang Rust backend khi gọi API.
+Token Facebook và API key OpenAI Compatible Provider **không nên** lưu trong frontend hoặc file index này. Đã dùng secure credential store của hệ điều hành (`secure-credentials.json` + keyring) và chỉ chuyển secret sang Rust backend khi gọi API.

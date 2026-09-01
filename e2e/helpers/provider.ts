@@ -1,0 +1,56 @@
+import { invoke } from './tauri';
+import type { Page } from '@playwright/test';
+
+export const DEFAULT_ID = 'custom-provider';
+export const DEFAULT_BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:20128/v1';
+export const DEFAULT_MODEL = process.env.E2E_MODEL || 'xoay-vong-worker-web-128k';
+export const DEFAULT_API_KEY = process.env.E2E_API_KEY || 'sk-REPLACE_WITH_YOUR_KEY';
+
+export async function ensureProvider(
+  page: Page,
+  opts: { id?: string; baseUrl?: string; apiKey?: string; models?: string[] } = {}
+) {
+  const id = opts.id || DEFAULT_ID;
+  const baseUrl = opts.baseUrl || DEFAULT_BASE_URL;
+  const apiKey = opts.apiKey || DEFAULT_API_KEY;
+  const models = opts.models || [DEFAULT_MODEL];
+
+  // Try get active, then update. If no provider file, update will auto-create default.
+  try {
+    await invoke(page, 'update_provider', {
+      id,
+      payload: {
+        displayName: 'Custom provider',
+        baseUrl,
+        protocol: 'openai-completions',
+        models,
+        apiKey,
+      },
+    });
+  } catch (e) {
+    // If provider not found (fresh install), try create
+    const msg = String(e);
+    if (msg.includes('Không tìm thấy provider')) {
+      await invoke(page, 'create_provider', {
+        payload: {
+          id,
+          displayName: 'Custom provider',
+          baseUrl,
+          protocol: 'openai-completions',
+          models,
+          apiKey,
+        },
+      });
+    } else {
+      throw e;
+    }
+  }
+
+  const active = await invoke<any>(page, 'get_active_provider');
+  if (!active.hasApiKey) throw new Error('ensureProvider: hasApiKey false after update');
+  return active;
+}
+
+export async function listProviders(page: Page) {
+  return invoke<any[]>(page, 'list_providers');
+}

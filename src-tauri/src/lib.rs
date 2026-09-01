@@ -9,6 +9,7 @@ use tauri::{AppHandle, Manager};
 mod ai;
 mod content;
 mod facebook;
+mod providers;
 mod schedule;
 mod security;
 
@@ -378,6 +379,12 @@ pub fn run() {
             security::get_ai_provider_key,
             security::delete_ai_provider_key,
             security::credential_status,
+            providers::list_providers,
+            providers::get_active_provider,
+            providers::create_provider,
+            providers::update_provider,
+            providers::delete_provider,
+            providers::fetch_provider_models,
             content::list_content,
             content::get_content,
             content::save_content,

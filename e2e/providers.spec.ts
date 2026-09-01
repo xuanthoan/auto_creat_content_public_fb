@@ -2,10 +2,75 @@ import { test, expect } from '@playwright/test';
 import { invoke, isTauri } from './helpers/tauri';
 import { ensureProvider, DEFAULT_MODEL } from './helpers/provider';
 
+const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:20128/v1';
+
+const mockImplCode = `
+window.__TAURI_MOCK__ = true;
+window.__TAURI_INTERNALS__ = {};
+window.__TAURI_MOCK_IMPL__ = async (cmd, args) => {
+  const baseUrl = ${JSON.stringify(BASE_URL)};
+  switch (cmd) {
+    case 'list_providers':
+      return [
+        {
+          id: 'custom-provider',
+          displayName: 'Custom provider',
+          baseUrl: baseUrl,
+          protocol: 'openai-completions',
+          models: ['xoay-vong-worker-web-128k'],
+          hasApiKey: true,
+        },
+      ];
+    case 'get_active_provider':
+      return {
+        id: 'custom-provider',
+        displayName: 'Custom provider',
+        baseUrl: baseUrl,
+        protocol: 'openai-completions',
+        models: ['xoay-vong-worker-web-128k'],
+        hasApiKey: true,
+      };
+    case 'update_provider': {
+      const protocol = args?.payload?.protocol;
+      if (protocol === 'anthropic-messages') {
+        throw new Error("Protocol 'anthropic-messages' chưa hỗ trợ ở MVP, chỉ 'openai-completions' được enable");
+      }
+      return {
+        id: 'custom-provider',
+        displayName: 'Custom provider',
+        baseUrl: baseUrl,
+        protocol: 'openai-completions',
+        models: ['xoay-vong-worker-web-128k'],
+        hasApiKey: true,
+      };
+    }
+    case 'create_provider': {
+      const id = args?.payload?.id;
+      if (!id || !/^[a-z][a-z0-9-]*$/.test(id) || id.includes('--')) {
+        throw new Error('Provider ID không hợp lệ: phải lowercase, bắt đầu bằng chữ cái, chỉ chứa a-z, 0-9, \\'-\\', không --, 1-64 ký tự');
+      }
+      return { id, hasApiKey: true };
+    }
+    case 'fetch_provider_models':
+      return ['xoay-vong-worker-web-128k'];
+    case 'delete_provider':
+      return;
+    default:
+      throw new Error('Unknown mock command: ' + cmd);
+  }
+};
+`;
+
 test.describe('Providers E2E (real server)', () => {
-  test.skip(!process.env.E2E_API_KEY && !process.env.CI, 'E2E_API_KEY not set, skipping real server test. Set E2E_API_KEY=sk-... to run.');
+  test.skip(
+    (!process.env.E2E_API_KEY && !process.env.CI && process.env.E2E_MOCK !== 'true'),
+    'E2E_API_KEY not set, skipping real server test. Set E2E_API_KEY=sk-... to run.'
+  );
 
   test.beforeEach(async ({ page }) => {
+    if (process.env.E2E_MOCK === 'true') {
+      await page.addInitScript(mockImplCode);
+    }
     await page.goto('/');
     // Wait for Tauri to be ready; if not in Tauri, skip
     const tauri = await isTauri(page);
@@ -28,7 +93,7 @@ test.describe('Providers E2E (real server)', () => {
     const active = await ensureProvider(page);
     expect(active.id).toBe('custom-provider');
     expect(active.hasApiKey).toBe(true);
-    expect(active.baseUrl).toBe(process.env.E2E_BASE_URL || 'http://localhost:20128/v1');
+    expect(active.baseUrl).toBe(BASE_URL);
   });
 
   test('fetch_provider_models with real server', async ({ page }) => {

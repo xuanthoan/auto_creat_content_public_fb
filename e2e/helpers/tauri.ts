@@ -12,6 +12,11 @@ export async function invoke<T = unknown>(page: Page, command: string, args?: Re
   return page.evaluate(
     async ({ cmd, a }) => {
       // @ts-ignore
+      if ((window as any).__TAURI_MOCK__) {
+        // @ts-ignore
+        return (window as any).__TAURI_MOCK_IMPL__(cmd, a);
+      }
+      // @ts-ignore
       const { invoke } = await import('@tauri-apps/api/core');
       return invoke(cmd, a);
     },

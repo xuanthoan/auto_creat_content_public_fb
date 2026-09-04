@@ -483,12 +483,16 @@ function ScheduleModal({ contentId, onClose, onCreated }) {
 }
 
 function PublishModal({ onClose, onSuccess }) {
+  const desktop = isDesktop()
   const [pages, setPages] = useState([])
   const [pageId, setPageId] = useState('')
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [msg, setMsg] = useState('')
+  const [mediaItems, setMediaItems] = useState([])
+  const [selectedMediaId, setSelectedMediaId] = useState(null)
+  const [showPicker, setShowPicker] = useState(false)
 
   // Load pages when modal opens (use empty token → backend lấy từ keyring)
   useEffect(() => {
@@ -497,11 +501,27 @@ function PublishModal({ onClose, onSuccess }) {
       .catch(e => setErr(String(e)))
   }, [])
 
+  const loadMedia = async () => {
+    if (!desktop) return
+    try {
+      const list = await invokeDesktop('list_media')
+      const withUrls = await Promise.all(list.map(async item => ({ ...item, url: await localAssetUrl(item.path) })))
+      setMediaItems(withUrls)
+    } catch (e) { setErr(String(e)) }
+  }
+
+  useEffect(() => { if (showPicker) loadMedia() }, [showPicker]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handlePublish = async () => {
     if (!pageId || !message.trim()) return
     setBusy(true); setErr(''); setMsg('')
     try {
-      const res = await invokeDesktop('publish_content', { page_id: pageId, message, image_path: null })
+      let imagePath = null
+      if (selectedMediaId) {
+        const found = mediaItems.find(m => m.id === selectedMediaId)
+        if (found) imagePath = found.path
+      }
+      const res = await invokeDesktop('publish_content', { page_id: pageId, message, image_path: imagePath })
       setMsg(`Đã đăng thành công (post ID: ${res.id || 'unknown'})`)
       onSuccess && onSuccess()
       setTimeout(onClose, 1500)
@@ -518,6 +538,22 @@ function PublishModal({ onClose, onSuccess }) {
           {pages.map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
         </select>
         <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Nội dung bài đăng..." disabled={busy} style={{width:'100%', minHeight:100, border:'1px solid #e2e1e7', borderRadius:8, padding:12, marginTop:8, fontSize:12, resize:'vertical'}} />
+        <div>
+          <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4}}>
+            <label style={{fontSize:11, fontWeight:700}}>Ảnh đính kèm (tùy chọn, 1 ảnh đầu)</label>
+            <button className="outline" onClick={()=>setShowPicker(v=>!v)} disabled={!desktop || busy} style={{height:28, fontSize:11}}><Images size={12}/> {showPicker ? 'Ẩn' : 'Chọn ảnh'}</button>
+          </div>
+          {!desktop && showPicker && <div style={{fontSize:10, color:'#777', marginTop:4}}>Chọn ảnh chỉ hoạt động trong bản Tauri Desktop</div>}
+          {showPicker && <div style={{marginTop:8, maxHeight:160, overflowY:'auto', border:'1px solid #eee', borderRadius:8, padding:8, background:'#fafafa'}}>
+            {mediaItems.length ? <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6}}>
+              {mediaItems.map(m => <div key={m.id} onClick={()=>setSelectedMediaId(prev=> prev===m.id ? null : m.id)} style={{border: selectedMediaId===m.id ? '2px solid #6558d6' : '1px solid #e8e8ed', borderRadius:8, overflow:'hidden', cursor:'pointer', background:'#fff'}}>
+                <div style={{aspectRatio:1, overflow:'hidden', background:'#f5f5f5', display:'grid', placeItems:'center'}}>{m.mediaType==='image' ? <img src={m.url} alt={m.name} style={{width:'100%', height:'100%', objectFit:'cover'}}/> : <><video src={m.url} style={{width:'100%', height:'100%', objectFit:'cover'}}/><div style={{fontSize:9, color:'#777'}}><Film size={10}/> VIDEO</div></>}</div>
+                <div style={{padding:4, fontSize:9, textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', background: selectedMediaId===m.id ? '#f0eefc' : '#fff', color: selectedMediaId===m.id ? '#6558d6' : '#333'}}>{selectedMediaId===m.id ? '✓ ' : ''}{m.name}</div>
+              </div>)}
+            </div> : <span style={{fontSize:11, color:'#777'}}>Thư viện trống — hãy nhập media trước</span>}
+          </div>}
+          {selectedMediaId && <div style={{fontSize:10, color:'#6558d6', marginTop:4}}>Đã chọn 1 ảnh để đăng kèm (ảnh đầu)</div>}
+        </div>
         {err && <div className="error-box" style={{marginTop:8}}>{err}</div>}
         {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e', marginTop:8, padding:8}}><CircleCheck size={14}/><span>{msg}</span></div>}
         <div style={{display:'flex', justifyContent:'flex-end', gap:8}}>

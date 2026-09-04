@@ -32,14 +32,15 @@ window.__TAURI_MOCK_IMPL__ = async (cmd, args) => {
       };
     case 'update_provider': {
       const protocol = args?.payload?.protocol;
-      if (protocol === 'anthropic-messages') {
-        throw new Error("Protocol 'anthropic-messages' chưa hỗ trợ ở MVP, chỉ 'openai-completions' được enable");
+      const validProtocols = ['openai-completions', 'openai-responses', 'anthropic-messages'];
+      if (protocol && !validProtocols.includes(protocol)) {
+        throw new Error("Protocol không hợp lệ: " + protocol + ". Chỉ hỗ trợ: " + validProtocols.join(", "));
       }
       return {
         id: 'custom-provider',
         displayName: 'Custom provider',
         baseUrl: baseUrl,
-        protocol: 'openai-completions',
+        protocol: protocol || 'openai-completions',
         models: ['xoay-vong-worker-web-128k'],
         hasApiKey: true,
       };
@@ -126,11 +127,41 @@ test.describe('Providers E2E (real server)', () => {
     try {
       await invoke(page, 'update_provider', {
         id: 'custom-provider',
-        payload: { protocol: 'anthropic-messages' },
+        payload: { protocol: 'invalid-protocol' },
       });
       throw new Error('should have failed');
     } catch (e) {
-      expect(String(e)).toContain('chưa hỗ trợ');
+      expect(String(e)).toContain('Protocol không hợp lệ');
     }
+  });
+
+  test('create_provider second provider succeeds (multi-provider)', async ({ page }) => {
+    const secondId = 'second-provider';
+    const res: any = await invoke(page, 'create_provider', {
+      payload: {
+        id: secondId,
+        displayName: 'Second Provider',
+        baseUrl: BASE_URL,
+        protocol: 'openai-responses',
+        models: [DEFAULT_MODEL],
+        apiKey: 'dummy-key-2',
+      },
+    });
+    expect(res.id).toBe(secondId);
+    // cleanup: try delete if real server, ignore if mock
+    try { await invoke(page, 'delete_provider', { id: secondId }); } catch {}
+  });
+
+  test('update_provider with anthropic-messages should succeed', async ({ page }) => {
+    const res: any = await invoke(page, 'update_provider', {
+      id: 'custom-provider',
+      payload: { protocol: 'anthropic-messages' },
+    });
+    expect(res.protocol).toBe('anthropic-messages');
+    // restore
+    await invoke(page, 'update_provider', {
+      id: 'custom-provider',
+      payload: { protocol: 'openai-completions' },
+    });
   });
 });

@@ -153,7 +153,7 @@ function ProvidersPanel() {
         <div style={{display:'flex', alignItems:'center', gap:8}}><strong style={{fontSize:13}}>{form.displayName || form.id || 'Custom provider'}</strong><span style={{fontSize:10, background:'#f0eefc', color:'#6558d6', padding:'2px 7px', borderRadius:10, fontWeight:700}}>Custom</span><span style={{width:8, height:8, borderRadius:8, background: hasApiKey ? '#4caf50' : '#ccc', display:'inline-block'}}/></div>
         <div style={{display:'flex', gap:6}}>
           <button className="outline" onClick={()=>{ setIsEditing(!isEditing); setErr(''); setMsg('') }} disabled={!desktop || busy} style={{height:32, fontSize:11}}>{isEditing ? 'Edit' : 'Create'}</button>
-          <button className="outline" onClick={async()=>{ if(!window.confirm('Xóa provider này?')) return; try{ await invokeDesktop('delete_provider',{id:form.id}); setMsg('Đã xóa'); await load() }catch(e){setErr(String(e))} }} disabled={!desktop || busy || providers.length<=1} title={providers.length<=1 ? 'MVP chỉ có 1 provider, không thể xóa' : ''} style={{height:32, fontSize:11, color: providers.length<=1 ? '#aaa' : '#b55041', borderColor: providers.length<=1 ? '#eee' : '#f6d4cd'}}>Delete</button>
+          <button className="outline" onClick={async()=>{ if(!window.confirm('Xóa provider này?')) return; try{ await invokeDesktop('delete_provider',{id:form.id}); setMsg('Đã xóa'); await load() }catch(e){setErr(String(e))} }} disabled={!desktop || busy || providers.length<=1} title={providers.length<=1 ? 'Không thể xóa provider cuối cùng' : ''} style={{height:32, fontSize:11, color: providers.length<=1 ? '#aaa' : '#b55041', borderColor: providers.length<=1 ? '#eee' : '#f6d4cd'}}>Delete</button>
         </div>
       </div>
       <div style={{height:1, background:'#eee'}}/>
@@ -175,8 +175,8 @@ function ProvidersPanel() {
           <label style={{fontSize:11, fontWeight:700}}>API protocol</label>
           <select value={form.protocol} onChange={e=>setForm(f=>({...f, protocol:e.target.value}))} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6, fontSize:12}}>
             <option value="openai-completions">openai-completions</option>
-            <option value="openai-responses" disabled>openai-responses (MVP chưa hỗ trợ)</option>
-            <option value="anthropic-messages" disabled>anthropic-messages (MVP chưa hỗ trợ)</option>
+            <option value="openai-responses">openai-responses</option>
+            <option value="anthropic-messages">anthropic-messages</option>
           </select>
         </div>
         <div>
@@ -350,7 +350,7 @@ function AiContentPage() {
       const res = await invokeDesktop('generate_content', { payload: { prompt, style, customStyle: customStyle || null, length } })
       setTitle(res.title || '')
       setBody(res.body || '')
-      setMsg(res.isMock ? 'Đã tạo nội dung mock (demo Kho)' : 'Đã tạo nội dung')
+      setMsg('Đã tạo nội dung')
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
 
@@ -368,7 +368,7 @@ function AiContentPage() {
   const toggleMedia = (id) => setMediaIds(prev => prev.includes(id) ? prev.filter(x => x!==id) : [...prev, id])
 
   return <section className="media-page">
-    <div className="page-heading"><div><p>AI CONTENT</p><h1>Tạo nội dung với AI</h1><span>Nhập prompt, chọn style, tạo mock để demo Kho trước khi nối OpenAI Compatible Provider thật.</span></div></div>
+    <div className="page-heading"><div><p>AI CONTENT</p><h1>Tạo nội dung với AI</h1><span>Nhập prompt, chọn style, tạo nội dung với AI provider đã cấu hình.</span></div></div>
     {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chức năng AI chỉ hoạt động trong bản Tauri.</span></div></div>}
     {err && <div className="error-box">{err}</div>}
     {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
@@ -420,7 +420,6 @@ function AiContentPage() {
         <button className="outline" onClick={()=>{setPrompt(''); setTitle(''); setBody(''); setMediaIds([]); setMsg(''); setErr('')}} disabled={busy} style={{height:36}}>Xóa form</button>
         <button className="primary" onClick={save} disabled={!desktop || busy} style={{height:36}}><FileText size={16}/> Lưu vào kho</button>
       </div>
-      <div style={{background:'#fff7e6', border:'1px solid #ffe4b5', borderRadius:8, padding:10, fontSize:11, color:'#8a6d00'}}>Mock demo: Chưa nối OpenAI Compatible Provider thật. Khi bạn lưu OpenAI Compatible Provider Key ở Cài đặt, bản mock vẫn dùng để demo Kho — API thật sẽ được thay thế sau mà không đổi kho.</div>
     </div>
   </section>
 }

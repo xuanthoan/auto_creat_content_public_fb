@@ -8,8 +8,8 @@ pub const DEFAULT_MODEL: &str = "xoay-vong-worker-web-128k";
 pub const DEFAULT_PROVIDER_ID: &str = "custom-provider";
 pub const DEFAULT_DISPLAY_NAME: &str = "Custom provider";
 pub const VALID_PROTOCOLS: &[&str] = &["openai-completions", "openai-responses", "anthropic-messages"];
-// MVP only enables openai-completions
-pub const MVP_ENABLED_PROTOCOL: &str = "openai-completions";
+// Default protocol for new providers
+pub const DEFAULT_PROTOCOL: &str = "openai-completions";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -106,12 +106,6 @@ fn validate_protocol(protocol: &str) -> Result<(), String> {
             VALID_PROTOCOLS.join(", ")
         ));
     }
-    if protocol != MVP_ENABLED_PROTOCOL {
-        return Err(format!(
-            "Protocol '{}' chưa hỗ trợ ở MVP, chỉ '{}' được enable",
-            protocol, MVP_ENABLED_PROTOCOL
-        ));
-    }
     Ok(())
 }
 
@@ -169,7 +163,7 @@ fn default_provider() -> Provider {
         id: DEFAULT_PROVIDER_ID.to_string(),
         display_name: DEFAULT_DISPLAY_NAME.to_string(),
         base_url: DEFAULT_BASE_URL.to_string(),
-        protocol: MVP_ENABLED_PROTOCOL.to_string(),
+        protocol: DEFAULT_PROTOCOL.to_string(),
         models: vec![DEFAULT_MODEL.to_string()],
     }
 }
@@ -192,12 +186,6 @@ pub fn resolve_active_provider<R: Runtime>(
         .find(|p| p.id == file.active_provider_id)
         .cloned()
         .ok_or("Không tìm thấy active provider")?;
-    if provider.protocol != MVP_ENABLED_PROTOCOL {
-        return Err(format!(
-            "Protocol '{}' chưa hỗ trợ ở MVP, chỉ '{}' được enable",
-            provider.protocol, MVP_ENABLED_PROTOCOL
-        ));
-    }
     let key = crate::security::get_secret_hybrid(Some(app), &api_key_name(&provider.id))
         .ok()
         .flatten()
@@ -221,9 +209,6 @@ pub fn resolve_active_provider_at(
         .find(|p| p.id == file.active_provider_id)
         .cloned()
         .ok_or("Không tìm thấy active provider")?;
-    if provider.protocol != MVP_ENABLED_PROTOCOL {
-        return Err(format!("Protocol '{}' chưa hỗ trợ", provider.protocol));
-    }
     let key_name = api_key_name(&provider.id);
     let key = key_map
         .get(&key_name)
@@ -330,10 +315,6 @@ pub fn create_provider(app: AppHandle, payload: CreateProviderPayload) -> Result
     if file.providers.iter().any(|p| p.id == id) {
         return Err(format!("Provider ID '{}' đã tồn tại", id));
     }
-    // MVP: only 1 provider
-    if file.providers.len() >= 1 {
-        return Err("MVP chỉ hỗ trợ 1 provider. Vui lòng update provider hiện tại thay vì tạo mới.".into());
-    }
     let display_name = payload
         .display_name
         .map(|s| s.trim().to_string())
@@ -413,7 +394,7 @@ pub fn delete_provider(app: AppHandle, id: String) -> Result<(), String> {
     let id = id.trim().to_lowercase();
     let mut file = read_providers_file(&app)?;
     if file.providers.len() <= 1 {
-        return Err("MVP chỉ có 1 provider, không thể xóa provider cuối cùng. Hãy update thay vì xóa.".into());
+        return Err("Không thể xóa provider cuối cùng. Hãy update thay vì xóa.".into());
     }
     let pos = file
         .providers
@@ -532,9 +513,10 @@ mod tests {
     #[test]
     fn test_validate_protocol() {
         assert!(validate_protocol("openai-completions").is_ok());
-        assert!(validate_protocol("openai-responses").is_err());
-        assert!(validate_protocol("anthropic-messages").is_err());
+        assert!(validate_protocol("openai-responses").is_ok());
+        assert!(validate_protocol("anthropic-messages").is_ok());
         assert!(validate_protocol("invalid").is_err());
+        assert!(validate_protocol("invalid-protocol").is_err());
     }
 
     #[test]

@@ -161,6 +161,8 @@ pub struct CreateSchedulePayload {
     pub platform: String,
     #[serde(default)]
     pub pages: Option<Vec<String>>,
+    #[serde(default)]
+    pub page_id: Option<String>,
 }
 
 #[tauri::command]
@@ -194,13 +196,19 @@ pub fn create_schedule(app: AppHandle, payload: CreateSchedulePayload) -> Result
     let mut items = read_schedule_index(&app)?;
 
     let pages = payload.pages.unwrap_or_default();
+    let resolved_page_id = payload
+        .page_id
+        .clone()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .or_else(|| pages.first().cloned());
     let item = ScheduleItem {
         id: uuid::Uuid::new_v4().to_string(),
         content_id: payload.content_id.trim().to_string(),
         scheduled_at: payload.scheduled_at,
         platform: payload.platform.trim().to_string(),
         pages: pages.clone(),
-        page_id: pages.first().cloned(),
+        page_id: resolved_page_id.clone(),
         status: ScheduleStatus::Scheduled,
         retry_count: 0,
         last_error: None,

@@ -221,12 +221,17 @@ function SettingsPage() {
       const s = await invokeDesktop('credential_status')
       setStatus(s)
     } catch (e) { setErr(String(e)) }
+    try {
+      const cfg = await invokeDesktop('get_scheduler_config')
+      setSelectedPageId(cfg.selectedPageId || '')
+    } catch {}
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [pages, setPages] = useState([])
+  const [selectedPageId, setSelectedPageId] = useState('')
   const [subTab, setSubTab] = useState('Providers')
   const saveFb = async () => {
     if (!fbInput.trim()) { setErr('Vui lòng nhập Facebook Token'); return }
@@ -283,6 +288,15 @@ function SettingsPage() {
         {pages.length > 0 && <div className="panel" style={{marginTop:10, padding:10, background:'#f9fafb'}}>
           <div style={{fontSize:11, fontWeight:700, marginBottom:6}}>Danh sách Trang ({pages.length}) — Page Token đã cache, không hiện:</div>
           {pages.map(p => <div key={p.id} style={{display:'flex', justifyContent:'space-between', padding:'6px 8px', background:'#fff', border:'1px solid #eee', borderRadius:6, marginBottom:4}}><span style={{fontSize:11}}><b>{p.name}</b> <span style={{color:'#777'}}>({p.id})</span></span><span style={{fontSize:10, color:'#2e7d32'}}>● token cached</span></div>)}
+          <div style={{display:'flex', gap:8, alignItems:'center', marginTop:10}}>
+            <label style={{fontSize:11, fontWeight:700}}>Trang mặc định cho Lịch:</label>
+            <select value={selectedPageId} onChange={async e=>{ const v=e.target.value; setSelectedPageId(v); if(!v) return; try{ await invokeDesktop('select_scheduler_page', {pageId: v}); setMsg(`Đã chọn Trang mặc định ${v}`)} catch(err){ setErr(String(err)) } }} disabled={!desktop || busy} style={{flex:1, height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', fontSize:11}}>
+              <option value="">-- Chưa chọn --</option>
+              {pages.map(p=> <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+            </select>
+            {selectedPageId && <span style={{fontSize:10, color:'#2e7d32'}}>● đã lưu {selectedPageId}</span>}
+          </div>
+          {!desktop && <div style={{fontSize:10, color:'#777', marginTop:4}}>Chọn Trang mặc định chỉ hoạt động trong Tauri Desktop</div>}
         </div>}
       </div>
       <div style={{height:1, background:'#eee'}}/>
@@ -425,11 +439,35 @@ function AiContentPage() {
 }
 
 function ScheduleModal({ contentId, onClose, onCreated }) {
+  const desktop = isDesktop()
   const [scheduledAt, setScheduledAt] = useState('')
   const [platform, setPlatform] = useState('Sống Tích Cực')
+  const [pageId, setPageId] = useState('')
+  const [pageOptions, setPageOptions] = useState([])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [warn, setWarn] = useState('')
+
+  useEffect(() => {
+    if (!desktop) return
+    const load = async () => {
+      try {
+        const cfg = await invokeDesktop('get_scheduler_config')
+        if (cfg.selectedPageId) setPageId(cfg.selectedPageId)
+      } catch {}
+      try {
+        const list = await invokeDesktop('list_facebook_pages', { token: '' })
+        setPageOptions(list)
+        if (list.length && !pageId) {
+          try {
+            const cfg2 = await invokeDesktop('get_scheduler_config')
+            if (!cfg2.selectedPageId) setPageId(list[0].id)
+          } catch { setPageId(list[0].id) }
+        }
+      } catch (e) { /* pages optional, will show warning in UI */ }
+    }
+    load()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const checkConflict = async () => {
     if (!scheduledAt || !platform) return ''
@@ -445,6 +483,7 @@ function ScheduleModal({ contentId, onClose, onCreated }) {
   const handleSchedule = async (ignoreWarn) => {
     if (!contentId) { setErr('Thiếu contentId'); return }
     if (!scheduledAt) { setErr('Vui lòng chọn thời gian'); return }
+    if (!pageId.trim()) { setErr('Vui lòng chọn Trang đích (Page ID)'); return }
     if (!ignoreWarn) {
       const w = await checkConflict()
       if (w) { setWarn(w); return }
@@ -452,7 +491,7 @@ function ScheduleModal({ contentId, onClose, onCreated }) {
     setBusy(true); setErr(''); setWarn('')
     try {
       const iso = new Date(scheduledAt).toISOString()
-      await invokeDesktop('create_schedule', { payload: { contentId, scheduledAt: iso, platform, pages: [platform] } })
+      await invokeDesktop('create_schedule', { payload: { contentId, scheduledAt: iso, platform, pageId, pages: [pageId] } })
       onCreated && onCreated()
       onClose()
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
@@ -467,10 +506,19 @@ function ScheduleModal({ contentId, onClose, onCreated }) {
         <div style={{fontSize:10, color:'#888', marginTop:4}}>Phải trong tương lai, tối thiểu 5 phút.</div>
       </div>
       <div>
-        <label style={{fontSize:12, fontWeight:700}}>Nền tảng</label>
+        <label style={{fontSize:12, fontWeight:700}}>Trang đích *</label>
+        {pageOptions.length ? <select value={pageId} onChange={e=>setPageId(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
+          <option value="">-- Chọn Trang --</option>
+          {pageOptions.map(p=> <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+        </select> : <div style={{fontSize:11, color:'#777', marginTop:6, padding:8, background:'#fafafa', borderRadius:6}}>Chưa có Trang — hãy vào Cài đặt → Kết nối → Tải Trang{!desktop && ' (chỉ Desktop)'}</div>}
+        {!desktop && <div style={{fontSize:10, color:'#777', marginTop:4}}>Chọn Trang chỉ hoạt động trong Tauri Desktop</div>}
+      </div>
+      <div>
+        <label style={{fontSize:12, fontWeight:700}}>Nền tảng (label hiển thị)</label>
         <select value={platform} onChange={e=>setPlatform(e.target.value)} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
           <option>Sống Tích Cực</option><option>Daily Motivation</option><option>Chill Mỗi Ngày</option>
         </select>
+        <div style={{fontSize:10, color:'#777', marginTop:4}}>Dùng để lọc Calendar, không ảnh hưởng Page ID đăng bài.</div>
       </div>
       {warn && <div className="error-box" style={{background:'#fff3cd', borderColor:'#ffc107', color:'#664d03'}}>{warn}<div style={{marginTop:8, display:'flex', gap:8}}><button className="outline" onClick={()=>setWarn('')} style={{height:30}}>Hủy</button><button className="primary" onClick={()=>handleSchedule(true)} style={{height:30}}>Vẫn đăng trùng</button></div></div>}
       {err && <div className="error-box">{err}</div>}

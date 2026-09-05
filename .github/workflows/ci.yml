@@ -76,6 +76,7 @@ jobs:
         run: npx playwright test --list
         env:
           E2E_MOCK: 'true'
+          E2E_API_KEY: 'mock_dummy_key_for_ci'
 
       - name: Start Vite dev server
         run: |
@@ -94,6 +95,7 @@ jobs:
         run: npx playwright test
         env:
           E2E_MOCK: 'true'
+          E2E_API_KEY: 'mock_dummy_key_for_ci'
 
       - name: Stop Vite
         if: always()

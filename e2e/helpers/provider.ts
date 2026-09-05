@@ -12,8 +12,11 @@ export async function ensureProvider(
 ) {
   const id = opts.id || DEFAULT_ID;
   const baseUrl = opts.baseUrl || DEFAULT_BASE_URL;
-  const apiKey = opts.apiKey || DEFAULT_API_KEY;
-  if (!apiKey) throw new Error('E2E_API_KEY not set. Set env E2E_API_KEY=sk-... before running E2E.');
+  let apiKey = opts.apiKey || DEFAULT_API_KEY;
+  if (!apiKey) {
+    if (process.env.E2E_MOCK === 'true') apiKey = 'mock_dummy_key_for_ci';
+    else throw new Error('E2E_API_KEY not set. Set env E2E_API_KEY=sk-... before running E2E.');
+  }
   const models = opts.models || [DEFAULT_MODEL];
 
   // Try get active, then update. If no provider file, update will auto-create default.

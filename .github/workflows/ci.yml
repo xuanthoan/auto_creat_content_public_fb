@@ -50,8 +50,16 @@ jobs:
         env:
           RUST_BACKTRACE: 1
         run: |
+          set -o pipefail
           cargo test --manifest-path src-tauri/Cargo.toml --lib -- --nocapture --test-threads=1 2>&1 | tee /tmp/cargo-test.log
-          exit ${PIPESTATUS[0]}
+
+      - name: Show cargo test log on failure
+        if: failure()
+        run: |
+          echo "=== cargo test log ==="
+          cat /tmp/cargo-test.log || true
+          echo "=== end log ==="
+          cat /tmp/cargo-test.log >> $GITHUB_STEP_SUMMARY || true
 
       - name: Upload cargo test log on failure
         if: failure()

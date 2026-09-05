@@ -691,6 +691,10 @@ function SchedulePage() {
   const [busy, setBusy] = useState(false)
   const [month, setMonth] = useState(() => { const d=new Date(); return new Date(d.getFullYear(), d.getMonth(), 1) })
   const [tab, setTab] = useState('Calendar')
+  const [platformFilter, setPlatformFilter] = useState('Tất cả')
+  const [rescheduleFor, setRescheduleFor] = useState(null)
+  const [rescheduleTime, setRescheduleTime] = useState('')
+  const [dayDetail, setDayDetail] = useState(null)
 
   const refresh = async () => {
     if (!desktop) return
@@ -713,7 +717,29 @@ function SchedulePage() {
     try { await invokeDesktop('delete_schedule', { id }); await refresh() } catch (e) { setErr(String(e)) }
   }
 
+  const cancelItem = async (id) => {
+    if (!window.confirm('Hủy lịch (giữ lại lịch sử)?')) return
+    try { await invokeDesktop('update_schedule_status', { id, status: 'Cancelled' }); await refresh() } catch (e) { setErr(String(e)) }
+  }
+
+  const openReschedule = (item) => {
+    setRescheduleFor(item)
+    const next = new Date(new Date(item.scheduledAt).getTime() + 600000).toISOString().slice(0,16)
+    setRescheduleTime(next); setErr('')
+  }
+  const handleReschedule = async () => {
+    if (!rescheduleFor) return
+    if (!rescheduleTime) { setErr('Vui lòng chọn thời gian'); return }
+    setBusy(true); setErr('')
+    try {
+      const iso = new Date(rescheduleTime).toISOString()
+      await invokeDesktop('reschedule', { id: rescheduleFor.id, scheduledAt: iso })
+      setRescheduleFor(null); setRescheduleTime(''); await refresh()
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
   const contentMap = new Map(contents.map(c => [c.id, c]))
+  const filteredSchedules = platformFilter === 'Tất cả' ? schedules : schedules.filter(s => s.platform === platformFilter)
 
   const daysInMonth = () => {
     const y = month.getFullYear(), m = month.getMonth()
@@ -729,7 +755,7 @@ function SchedulePage() {
   const isToday = (d) => { if(!d) return false; const t=new Date(); return d.getDate()===t.getDate() && d.getMonth()===t.getMonth() && d.getFullYear()===t.getFullYear() }
   const schedulesForDay = (d) => {
     if (!d) return []
-    return schedules.filter(s => {
+    return filteredSchedules.filter(s => {
       const sd = new Date(s.scheduledAt)
       return sd.getDate()===d.getDate() && sd.getMonth()===d.getMonth() && sd.getFullYear()===d.getFullYear()
     })
@@ -742,9 +768,12 @@ function SchedulePage() {
     <div className="page-heading"><div><p>LỊCH NỘI DUNG</p><h1>Lịch nội dung</h1><span>Lịch đăng theo tháng và hàng đợi · Cảnh báo trùng &lt;30 phút nhưng cho phép đăng trùng nếu chấp nhận.</span></div><div className="media-actions"><button className="outline" onClick={refresh} disabled={!desktop || busy}><RefreshCw size={16}/> Làm mới</button></div></div>
     {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chỉ bản Tauri mới đọc được lịch.</span></div></div>}
     {err && <div className="error-box">{err}</div>}
-    <div style={{display:'flex', gap:8, marginBottom:14}}>
+    <div style={{display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', alignItems:'center'}}>
       <button className={tab==='Calendar'?'primary':'outline'} onClick={()=>setTab('Calendar')} style={{height:32}}><CalendarDays size={14}/> Lịch tháng</button>
-      <button className={tab==='Queue'?'primary':'outline'} onClick={()=>setTab('Queue')} style={{height:32}}><Clock3 size={14}/> Hàng đợi ({schedules.length})</button>
+      <button className={tab==='Queue'?'primary':'outline'} onClick={()=>setTab('Queue')} style={{height:32}}><Clock3 size={14}/> Hàng đợi ({filteredSchedules.length})</button>
+      <select value={platformFilter} onChange={e=>setPlatformFilter(e.target.value)} style={{height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', fontSize:12}}>
+        <option>Tất cả</option><option>Sống Tích Cực</option><option>Daily Motivation</option><option>Chill Mỗi Ngày</option>
+      </select>
     </div>
     {tab==='Calendar' ? <>
       <div className="panel" style={{padding:14, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
@@ -760,8 +789,8 @@ function SchedulePage() {
           {cells.map((d, idx) => {
             const list = schedulesForDay(d)
             const today = isToday(d)
-            return <div key={idx} className="day-cell" style={{minHeight:92, border: today ? '2px solid #6558d6' : '1px solid #e9e9ee', borderRadius:10, padding:8, background: d ? (today ? '#f7f6fe' : '#fff') : '#f9f9f9'}}>
-              {d && <><div style={{fontSize:12, fontWeight: today ? 800 : 600, color: today ? '#6558d6' : '#333'}}>{d.getDate()}</div>
+            return <div key={idx} className="day-cell" onClick={()=> d && list.length && setDayDetail(d)} style={{minHeight:92, border: today ? '2px solid #6558d6' : '1px solid #e9e9ee', borderRadius:10, padding:8, background: d ? (today ? '#f7f6fe' : '#fff') : '#f9f9f9', cursor: d && list.length ? 'pointer' : 'default'}}>
+               {d && <><div style={{fontSize:12, fontWeight: today ? 800 : 600, color: today ? '#6558d6' : '#333'}}>{d.getDate()}</div>
               <div style={{marginTop:6, display:'flex', flexDirection:'column', gap:4}}>
                 {list.slice(0,3).map(s => {
                   const c = contentMap.get(s.contentId)
@@ -776,13 +805,33 @@ function SchedulePage() {
       </div>
     </> : <div className="panel" style={{padding:0, overflow:'hidden'}}>
       <div style={{padding:'12px 14px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
-        <strong style={{fontSize:13}}>Hàng đợi ({schedules.length})</strong><span style={{fontSize:11, color:'#777'}}>Sắp xếp theo thời gian</span>
+        <strong style={{fontSize:13}}>Hàng đợi ({filteredSchedules.length})</strong><span style={{fontSize:11, color:'#777'}}>Sắp xếp theo thời gian</span>
       </div>
-      {schedules.length ? <div className="table-wrap"><table><thead><tr><th>THỜI GIAN</th><th>NỘI DUNG</th><th>TRANG</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>{schedules.map(s => {
+      {filteredSchedules.length ? <div className="table-wrap"><table><thead><tr><th>THỜI GIAN</th><th>NỘI DUNG</th><th>TRANG</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>{filteredSchedules.map(s => {
         const c = contentMap.get(s.contentId)
-        return <tr key={s.id}><td>{formatFull(s.scheduledAt)}</td><td><strong style={{fontSize:12}}>{c ? c.title : s.contentId}</strong><div style={{fontSize:10, color:'#777'}}>{c ? c.prompt.slice(0,40) : ''}</div></td><td><span style={{fontSize:11, background:'#f0eefc', padding:'3px 7px', borderRadius:10}}>{s.platform}</span></td><td><span style={{fontSize:10, padding:'3px 7px', borderRadius:10, background: s.status==='Scheduled' ? '#fff3cd' : s.status==='Published' ? '#e8f5e9' : '#fdecea', color: s.status==='Scheduled' ? '#664d03' : s.status==='Published' ? '#2e7d32' : '#611a15'}}>{s.status}</span></td><td><button className="outline" onClick={()=>deleteItem(s.id)} style={{height:28, fontSize:11}}><Trash2 size={12}/> Xóa</button></td></tr>
+        const isScheduled = s.status === 'Scheduled'
+        return <tr key={s.id}><td>{formatFull(s.scheduledAt)}</td><td><strong style={{fontSize:12}}>{c ? c.title : s.contentId}</strong><div style={{fontSize:10, color:'#777'}}>{c ? c.prompt.slice(0,40) : ''}</div></td><td><span style={{fontSize:11, background:'#f0eefc', padding:'3px 7px', borderRadius:10}}>{s.platform}</span></td><td><span style={{fontSize:10, padding:'3px 7px', borderRadius:10, background: s.status==='Scheduled' ? '#fff3cd' : s.status==='Published' ? '#e8f5e9' : s.status==='Failed' ? '#fdecea' : '#e8e8e8', color: s.status==='Scheduled' ? '#664d03' : s.status==='Published' ? '#2e7d32' : s.status==='Cancelled' ? '#555' : '#611a15'}}>{s.status}</span></td><td><div style={{display:'flex', gap:4}}><button className="outline" onClick={()=>openReschedule(s)} disabled={!isScheduled || busy} title={isScheduled ? '' : 'Chỉ lịch Scheduled mới dời được'} style={{height:28, fontSize:10}}><CalendarDays size={11}/> Dời</button><button className="outline" onClick={()=>cancelItem(s.id)} disabled={!isScheduled || busy} title={isScheduled ? '' : 'Chỉ lịch Scheduled mới hủy được'} style={{height:28, fontSize:10}}><X size={11}/> Hủy</button><button className="outline" onClick={()=>deleteItem(s.id)} style={{height:28, fontSize:11}}><Trash2 size={12}/> Xóa</button></div></td></tr>
       })}</tbody></table></div> : <div className="media-empty" style={{padding:30}}><div><CalendarDays size={34}/></div><h2>Chưa có lịch nào</h2><p>Hãy duyệt nội dung ở Kho và bấm Lên lịch.</p></div>}
     </div>}
+      {rescheduleFor && <div style={{position:'fixed', inset:0, background:'#0006', display:'grid', placeItems:'center', zIndex:55}} onClick={()=>setRescheduleFor(null)}>
+        <div className="panel" style={{width:380, padding:16, display:'flex', flexDirection:'column', gap:10}} onClick={e=>e.stopPropagation()}>
+          <h3 style={{margin:0, fontSize:14}}>Dời lịch: {rescheduleFor.platform}</h3>
+          <input type="datetime-local" value={rescheduleTime} onChange={e=>setRescheduleTime(e.target.value)} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px'}}/>
+          <div style={{fontSize:10, color:'#777'}}>Phải trong tương lai, tối thiểu 5 phút.</div>
+          {err && <div className="error-box">{err}</div>}
+          <div style={{display:'flex', justifyContent:'flex-end', gap:8}}>
+            <button className="outline" onClick={()=>setRescheduleFor(null)} disabled={busy} style={{height:32}}>Đóng</button>
+            <button className="primary" onClick={handleReschedule} disabled={busy} style={{height:32}}><CalendarDays size={14}/> Xác nhận</button>
+          </div>
+        </div>
+      </div>}
+      {dayDetail && <div style={{position:'fixed', inset:0, background:'#0006', display:'grid', placeItems:'center', zIndex:55}} onClick={()=>setDayDetail(null)}>
+        <div className="panel" style={{width:360, padding:16, display:'flex', flexDirection:'column', gap:8}} onClick={e=>e.stopPropagation()}>
+          <h3 style={{margin:0, fontSize:14}}>Lịch ngày {dayDetail.toLocaleDateString('vi-VN')}</h3>
+          {schedulesForDay(dayDetail).map(s=> { const c=contentMap.get(s.contentId); return <div key={s.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 8px', background:'#fafafa', borderRadius:6, fontSize:11}}><span>{formatTime(s.scheduledAt)} {c?c.title.slice(0,20):s.contentId.slice(0,6)} <span style={{color:'#777'}}>({s.status})</span></span><span style={{display:'flex', gap:4}}><button className="outline" onClick={()=>{ setDayDetail(null); openReschedule(s) }} disabled={s.status!=='Scheduled'} style={{height:24, fontSize:9}}>Dời</button><button className="outline" onClick={()=>{ cancelItem(s.id); setDayDetail(null) }} disabled={s.status!=='Scheduled'} style={{height:24, fontSize:9}}>Hủy</button></span></div> })}
+          <div style={{display:'flex', justifyContent:'flex-end'}}><button className="outline" onClick={()=>setDayDetail(null)} style={{height:32}}>Đóng</button></div>
+        </div>
+      </div>}
   </section>
 }
 

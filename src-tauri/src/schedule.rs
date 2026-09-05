@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Manager};
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -115,6 +116,8 @@ fn write_scheduler_config(app: &AppHandle, config: &SchedulerConfig) -> Result<(
     fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
     Ok(())
 }
+
+static SCHEDULER_RUNNING: AtomicBool = AtomicBool::new(false);
 
 #[cfg(test)]
 fn write_schedule_at(path: &std::path::Path, items: &[ScheduleItem]) -> Result<(), String> {
@@ -272,9 +275,14 @@ pub async fn start_scheduler(app: AppHandle) -> Result<(), String> {
     config.enabled = true;
     write_scheduler_config(&app, &config)?;
 
+    // Dedupe: nếu đã running thì không spawn thêm
+    if SCHEDULER_RUNNING.swap(true, Ordering::SeqCst) {
+        return Ok(());
+    }
+
     let app_handle = app.clone();
     tauri::async_runtime::spawn(async move {
-        let interval_secs = config.interval_seconds;
+        let mut interval_secs = config.interval_seconds;
         let mut interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
         loop {
             interval.tick().await;
@@ -285,8 +293,14 @@ pub async fn start_scheduler(app: AppHandle) -> Result<(), String> {
             if !current_config.enabled {
                 break;
             }
+            // Hot-reload interval nếu config đổi
+            if current_config.interval_seconds != interval_secs && current_config.interval_seconds >= 1 && current_config.interval_seconds <= 3600 {
+                interval_secs = current_config.interval_seconds;
+                interval = tokio::time::interval(std::time::Duration::from_secs(interval_secs));
+            }
             let _ = process_due_schedules(&app_handle).await;
         }
+        SCHEDULER_RUNNING.store(false, Ordering::SeqCst);
     });
 
     Ok(())
@@ -307,6 +321,9 @@ pub fn get_scheduler_config(app: AppHandle) -> Result<SchedulerConfig, String> {
 
 #[tauri::command]
 pub fn set_scheduler_config(app: AppHandle, config: SchedulerConfig) -> Result<(), String> {
+    if config.interval_seconds == 0 || config.interval_seconds > 3600 {
+        return Err("Khoảng kiểm tra phải từ 1 đến 3600 giây".into());
+    }
     write_scheduler_config(&app, &config)
 }
 
@@ -359,9 +376,9 @@ pub async fn process_due_schedules(app: &AppHandle) -> Result<(), String> {
             changed = true;
             continue;
         }
-        // Lấy nội dung body từ content
-        let content_body = match read_content_body(app, &items[i].content_id) {
-            Ok(b) => b,
+        // Lấy nội dung body + ảnh đầu (fallback đăng text nếu ảnh lỗi)
+        let (content_body, first_image) = match read_content_with_media(app, &items[i].content_id) {
+            Ok((b, img)) => (b, img),
             Err(e) => {
                 items[i].last_error = Some(e);
                 items[i].retry_count += 1;
@@ -375,8 +392,8 @@ pub async fn process_due_schedules(app: &AppHandle) -> Result<(), String> {
                 continue;
             }
         };
-        // Gọi publish
-        let res = crate::facebook::publish_content(app.clone(), resolved_page_id.clone(), content_body, None).await;
+        // Gọi publish (gửi ảnh đầu nếu có, fallback text nếu ảnh không hợp lệ đã được resolve trả None)
+        let res = crate::facebook::publish_content(app.clone(), resolved_page_id.clone(), content_body, first_image).await;
         match res {
             Ok(_) => {
                 items[i].status = ScheduleStatus::Published;
@@ -403,6 +420,7 @@ pub async fn process_due_schedules(app: &AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[allow(dead_code)]
 fn read_content_body(app: &AppHandle, content_id: &str) -> Result<String, String> {
     let content_path = app
         .path()
@@ -421,6 +439,72 @@ fn read_content_body(app: &AppHandle, content_id: &str) -> Result<String, String
         serde_json::from_str(&contents).map_err(|e| e.to_string())?;
     let found = items.into_iter().find(|c| c.id == content_id).ok_or_else(|| format!("Không tìm thấy nội dung {}", content_id))?;
     Ok(found.body)
+}
+
+fn resolve_first_image_path(app: &AppHandle, media_ids: &[String]) -> Option<String> {
+    if media_ids.is_empty() {
+        return None;
+    }
+    let first_id = media_ids[0].trim();
+    if first_id.is_empty() {
+        return None;
+    }
+    // Read media-index.json (duplicate logic from lib.rs to avoid private access)
+    let media_path = match app.path().app_data_dir() {
+        Ok(d) => d.join("media").join("media-index.json"),
+        Err(_) => return None,
+    };
+    if !media_path.exists() {
+        return None;
+    }
+    let contents = std::fs::read_to_string(&media_path).ok()?;
+    if contents.trim().is_empty() {
+        return None;
+    }
+    // Parse as generic Value to avoid private MediaItem struct
+    let items: Vec<serde_json::Value> = serde_json::from_str(&contents).ok()?;
+    let found = items.iter().find(|v| v.get("id").and_then(|id| id.as_str()) == Some(first_id))?;
+    let path = found.get("path").and_then(|p| p.as_str())?;
+    let media_type = found.get("mediaType").and_then(|t| t.as_str()).unwrap_or("image");
+    if media_type != "image" {
+        return None;
+    }
+    let p = std::path::Path::new(path);
+    if !p.exists() {
+        return None;
+    }
+    // Pre-flight like facebook.rs: size <=10MB and mime whitelist
+    if let Ok(meta) = std::fs::metadata(p) {
+        if meta.len() > 10 * 1024 * 1024 {
+            return None;
+        }
+    }
+    let mime = mime_guess::from_path(p).first_or_octet_stream().to_string();
+    if !["image/jpeg", "image/png", "image/webp", "image/gif"].contains(&mime.as_str()) {
+        return None;
+    }
+    Some(path.to_string())
+}
+
+fn read_content_with_media(app: &AppHandle, content_id: &str) -> Result<(String, Option<String>), String> {
+    let content_path = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("content")
+        .join("content-index.json");
+    if !content_path.exists() {
+        return Err(format!("Không tìm thấy nội dung {}", content_id));
+    }
+    let contents = std::fs::read_to_string(&content_path).map_err(|e| e.to_string())?;
+    if contents.trim().is_empty() {
+        return Err(format!("Không tìm thấy nội dung {}", content_id));
+    }
+    let items: Vec<crate::content::ContentItem> =
+        serde_json::from_str(&contents).map_err(|e| e.to_string())?;
+    let found = items.into_iter().find(|c| c.id == content_id).ok_or_else(|| format!("Không tìm thấy nội dung {}", content_id))?;
+    let image_path = resolve_first_image_path(app, &found.media_ids);
+    Ok((found.body, image_path))
 }
 
 #[cfg(test)]

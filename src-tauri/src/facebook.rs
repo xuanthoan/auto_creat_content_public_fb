@@ -258,6 +258,94 @@ pub async fn publish_content<R: Runtime>(
     }
 }
 
+fn resolve_token_for_page<R: Runtime>(app: &AppHandle<R>, page_id: &str) -> Result<String, String> {
+    crate::security::get_secret_hybrid(Some(app), &page_token_key(page_id))
+        .ok()
+        .flatten()
+        .or_else(|| crate::security::get_secret_hybrid(Some(app), "facebook_token").ok().flatten())
+        .ok_or("Không tìm thấy Page/User token, vui lòng Tải Trang lại".to_string())
+}
+
+#[tauri::command]
+pub async fn list_page_posts<R: Runtime>(app: AppHandle<R>, page_id: String, limit: Option<u8>) -> Result<serde_json::Value, String> {
+    if page_id.trim().is_empty() {
+        return Err("Thiếu page_id".into());
+    }
+    let access_token = resolve_token_for_page(&app, page_id.trim())?;
+    if access_token.trim().is_empty() {
+        return Err("Không tìm thấy Page/User token, vui lòng Tải Trang lại".into());
+    }
+    if cfg!(test) {
+        return Ok(serde_json::json!({"data": []}));
+    }
+    let lim = limit.unwrap_or(10).clamp(1, 25);
+    let fields = "id,message,created_time,permalink_url,likes.summary(true),comments.summary(true),shares";
+    let url = format!(
+        "{}/{}/posts?fields={}&limit={}&access_token={}",
+        graph_base(),
+        page_id.trim(),
+        urlencoding::encode(fields),
+        lim,
+        urlencoding::encode(&access_token)
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client.get(&url).send().await.map_err(|e| format!("Không thể kết nối Graph API: {}", e))?;
+    let status = resp.status().as_u16();
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+    if status >= 200 && status < 300 {
+        serde_json::from_str::<serde_json::Value>(&body).map_err(|_| "Không parse được phản hồi".into())
+    } else {
+        Err(map_graph_error(status, &body))
+    }
+}
+
+#[tauri::command]
+pub async fn get_post_insights<R: Runtime>(app: AppHandle<R>, post_id: String) -> Result<serde_json::Value, String> {
+    if post_id.trim().is_empty() {
+        return Err("Thiếu post_id".into());
+    }
+    // post_id thường là {page_id}_{post_id}, tách page_id để lấy token đúng trang
+    let page_id_part = post_id.trim().split('_').next().unwrap_or("").to_string();
+    let access_token = if !page_id_part.is_empty() {
+        crate::security::get_secret_hybrid(Some(&app), &page_token_key(&page_id_part))
+            .ok()
+            .flatten()
+            .or_else(|| crate::security::get_secret_hybrid(Some(&app), "facebook_token").ok().flatten())
+            .ok_or("Không tìm thấy Page/User token, vui lòng Tải Trang lại".to_string())?
+    } else {
+        resolve_token_for_page(&app, post_id.trim())?
+    };
+    if access_token.trim().is_empty() {
+        return Err("Không tìm thấy Page/User token, vui lòng Tải Trang lại".into());
+    }
+    if cfg!(test) {
+        return Ok(serde_json::json!({"data": []}));
+    }
+    let metrics = "post_impressions,post_impressions_unique,post_engaged_users,post_clicks,post_reactions_by_type_total,post_video_views";
+    let url = format!(
+        "{}/{}/insights?metric={}&access_token={}",
+        graph_base(),
+        post_id.trim(),
+        urlencoding::encode(metrics),
+        urlencoding::encode(&access_token)
+    );
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client.get(&url).send().await.map_err(|e| format!("Không thể kết nối Graph API: {}", e))?;
+    let status = resp.status().as_u16();
+    let body = resp.text().await.map_err(|e| e.to_string())?;
+    if status >= 200 && status < 300 {
+        serde_json::from_str::<serde_json::Value>(&body).map_err(|_| "Không parse được phản hồi".into())
+    } else {
+        Err(map_graph_error(status, &body))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

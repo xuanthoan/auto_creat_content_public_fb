@@ -397,6 +397,8 @@ pub fn run() {
             facebook::validate_facebook_token,
             facebook::list_facebook_pages,
             facebook::publish_content,
+            facebook::list_page_posts,
+            facebook::get_post_insights,
             schedule::get_scheduler_config,
             schedule::set_scheduler_config,
             schedule::select_scheduler_page,

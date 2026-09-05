@@ -915,12 +915,49 @@ function App() {
       try {
         const [contents, schedules] = await Promise.all([invokeDesktop('list_content'), invokeDesktop('list_schedule')])
         setContentCount(contents.length)
-        // Recent posts: 3 mới nhất từ content
-        const recent = [...contents].sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt)).slice(0,3).map((c,i) => ({
+        // Recent posts: 3 mới nhất từ content (fallback khi chưa có insights)
+        let recent = [...contents].sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt)).slice(0,3).map((c,i) => ({
           title: c.title, page: c.style, date: new Date(c.createdAt).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}),
-          type: c.mediaIds && c.mediaIds.length ? 'Ảnh + văn bản' : 'Văn bản', status: c.status, color: ['#f0a86e','#7469d5','#4b9b7d'][i%3], initials: c.style.slice(0,2).toUpperCase(), reach: '—', likes: '—', comments: '—', pending: c.status !== 'Approved'
+          type: c.mediaIds && c.mediaIds.length ? 'Ảnh + văn bản' : 'Văn bản', status: c.status, color: ['#f0a86e','#7469d5','#4b9b7d'][i%3], initials: c.style.slice(0,2).toUpperCase(), reach: '—', likes: '—', comments: '—', pending: c.status !== 'Approved', tooltip: ''
         }))
         setDashboardRecent(recent)
+        // Thử lấy toàn bộ 6 metrics thật từ Graph API (post_impressions, post_impressions_unique, post_engaged_users, post_clicks, post_reactions_by_type_total, post_video_views)
+        try {
+          const pages = await invokeDesktop('list_facebook_pages', { token: '' })
+          if (pages.length) {
+            const pageId = pages[0].id
+            const postsRes = await invokeDesktop('list_page_posts', { pageId, limit: 5 })
+            const fbPosts = postsRes?.data || (Array.isArray(postsRes) ? postsRes : [])
+            if (Array.isArray(fbPosts) && fbPosts.length) {
+              const getVal = (data, name) => {
+                const m = (data || []).find(x => x.name === name)
+                if (!m) return '—'
+                const v = m.values?.[0]?.value
+                if (v == null) return '—'
+                if (typeof v === 'object') return JSON.stringify(v)
+                return String(v)
+              }
+              const enriched = await Promise.all(fbPosts.slice(0,3).map(async (fp, idx) => {
+                try {
+                  const ins = await invokeDesktop('get_post_insights', { postId: fp.id })
+                  const data = ins?.data || []
+                  const msg = fp.message ? fp.message.slice(0,40) : fp.id
+                  return {
+                    title: msg, page: pages[0].name, date: new Date(fp.created_time).toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'}),
+                    type: fp.full_picture ? 'Ảnh + văn bản' : 'Văn bản', status: 'Đã đăng', color: ['#f0a86e','#7469d5','#4b9b7d'][idx%3], initials: pages[0].name.slice(0,2).toUpperCase(),
+                    reach: getVal(data, 'post_impressions_unique'), likes: getVal(data, 'post_reactions_by_type_total'), comments: getVal(data, 'post_clicks'), pending: false,
+                    tooltip: `Impressions: ${getVal(data,'post_impressions')} | Unique: ${getVal(data,'post_impressions_unique')} | Engaged: ${getVal(data,'post_engaged_users')} | Clicks: ${getVal(data,'post_clicks')} | Reactions: ${getVal(data,'post_reactions_by_type_total')} | VideoViews: ${getVal(data,'post_video_views')}`
+                  }
+                } catch { return null }
+              }))
+              const filtered = enriched.filter(Boolean)
+              if (filtered.length) {
+                recent = filtered
+                setDashboardRecent(filtered)
+              }
+            }
+          }
+        } catch { /* không có token read_insights thì giữ '—' */ }
         // Stats
         const now = new Date()
         const thisMonthContents = contents.filter(c => { const d=new Date(c.createdAt); return d.getMonth()===now.getMonth() && d.getFullYear()===now.getFullYear() }).length
@@ -980,7 +1017,7 @@ function App() {
 
         <section className="panel recent">
           <div className="panel-head"><div><h2>Bài viết gần đây</h2><p>Theo dõi trạng thái và hiệu quả bài đăng</p></div><button className="text-link">Xem tất cả <span>→</span></button></div>
-          <div className="table-wrap"><table><thead><tr><th>NỘI DUNG</th><th>TRANG</th><th>THỜI GIAN</th><th>LOẠI</th><th>TRẠNG THÁI</th><th>TIẾP CẬN</th><th>TƯƠNG TÁC</th><th></th></tr></thead><tbody>{dashboardRecent.length ? dashboardRecent.map((p, i) => <tr key={p.title + i}><td><div className="post-title"><div className={`thumb thumb${i+1}`}>{i === 0 ? '☀️' : i === 1 ? '“' : '▶'}</div><strong>{p.title}</strong></div></td><td><div className="page"><i style={{background:p.color}}>{p.initials}</i>{p.page}</div></td><td>{p.date}</td><td><span className="type">{p.type}</span></td><td><span className={p.pending ? 'status pending' : 'status success'}>{p.pending ? <Clock3 size={13}/> : <CircleCheck size={13}/>} {p.pending ? 'Đang xử lý' : p.status}</span></td><td><strong>{p.reach}</strong></td><td><div className="engage"><span><Heart size={14}/> {p.likes || '—'}</span><span><MessageCircle size={14}/> {p.comments || '—'}</span></div></td><td><button className="row-more" aria-label="Thao tác"><MoreHorizontal size={18}/></button></td></tr>) : <tr><td colSpan={8} style={{textAlign:'center', padding:20, color:'#777', fontSize:12}}>Chưa có bài viết — hãy tạo nội dung ở AI Content</td></tr>}</tbody></table></div>
+          <div className="table-wrap"><table><thead><tr><th>NỘI DUNG</th><th>TRANG</th><th>THỜI GIAN</th><th>LOẠI</th><th>TRẠNG THÁI</th><th>TIẾP CẬN</th><th>TƯƠNG TÁC</th><th></th></tr></thead><tbody>{dashboardRecent.length ? dashboardRecent.map((p, i) => <tr key={p.title + i} title={p.tooltip || ''}><td><div className="post-title"><div className={`thumb thumb${i+1}`}>{i === 0 ? '☀️' : i === 1 ? '“' : '▶'}</div><strong>{p.title}</strong></div></td><td><div className="page"><i style={{background:p.color}}>{p.initials}</i>{p.page}</div></td><td>{p.date}</td><td><span className="type">{p.type}</span></td><td><span className={p.pending ? 'status pending' : 'status success'}>{p.pending ? <Clock3 size={13}/> : <CircleCheck size={13}/>} {p.pending ? 'Đang xử lý' : p.status}</span></td><td title={p.tooltip || ''}><strong>{p.reach}</strong></td><td title={p.tooltip || ''}><div className="engage"><span><Heart size={14}/> {p.likes || '—'}</span><span><MessageCircle size={14}/> {p.comments || '—'}</span></div></td><td><button className="row-more" aria-label="Thao tác"><MoreHorizontal size={18}/></button></td></tr>) : <tr><td colSpan={8} style={{textAlign:'center', padding:20, color:'#777', fontSize:12}}>Chưa có bài viết — hãy tạo nội dung ở AI Content</td></tr>}</tbody></table></div>
         </section>
         </>}
         <footer><span>© 2026 FlowPost AI</span><span>Trạng thái hệ thống <i/> Hoạt động ổn định</span></footer>

@@ -907,6 +907,7 @@ function App() {
   const [dashboardPostsThisMonth, setDashboardPostsThisMonth] = useState(0)
   const [dashboardTotalInteractions, setDashboardTotalInteractions] = useState('—')
   const [dashboardTotalSub, setDashboardTotalSub] = useState('chờ Graph insights')
+  const [dashboardEngagementRate, setDashboardEngagementRate] = useState('—')
   const [hoveredRecent, setHoveredRecent] = useState(null)
   const desktop = isDesktop()
   const today = new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: '2-digit', month: 'long' }).format(new Date())
@@ -924,7 +925,7 @@ function App() {
           type: c.mediaIds && c.mediaIds.length ? 'Ảnh + văn bản' : 'Văn bản', status: c.status, color: ['#f0a86e','#7469d5','#4b9b7d'][i%3], initials: c.style.slice(0,2).toUpperCase(), reach: '—', likes: '—', comments: '—', pending: c.status !== 'Approved', tooltip: '', tooltipData: { impressions:'—', unique:'—', engaged:'—', clicks:'—', reactions:'—', videoViews:'—' }
         }))
         setDashboardRecent(recent)
-        setDashboardTotalInteractions('—'); setDashboardTotalSub('chờ Graph insights')
+        setDashboardTotalInteractions('—'); setDashboardTotalSub('chờ Graph insights'); setDashboardEngagementRate('—')
         // Thử lấy toàn bộ 6 metrics thật từ Graph API (post_impressions, post_impressions_unique, post_engaged_users, post_clicks, post_reactions_by_type_total, post_video_views)
         try {
           const pages = await invokeDesktop('list_facebook_pages', { token: '' })
@@ -959,8 +960,9 @@ function App() {
               if (filtered.length) {
                 recent = filtered
                 setDashboardRecent(filtered)
-                // Tính tổng tương tác từ insights
+                // Tính tổng tương tác và tỷ lệ từ insights
                 let total = 0
+                let totalUnique = 0
                 for (const r of filtered) {
                   const d = r.tooltipData
                   if (!d) continue
@@ -969,8 +971,13 @@ function App() {
                   let reactionsNum = 0
                   try { const obj = JSON.parse(d.reactions); if (typeof obj === 'object' && obj !== null) reactionsNum = Object.values(obj).reduce((s,v)=> s + (Number(v)||0),0); else reactionsNum = Number(d.reactions)||0 } catch { reactionsNum = Number(String(d.reactions).replace(/[^0-9.-]/g,''))||0 }
                   total += engaged + clicks + reactionsNum
+                  const unique = Number(String(d.unique).replace(/[^0-9.-]/g,'')) || 0
+                  totalUnique += unique
                 }
-                if (total) { setDashboardTotalInteractions(String(total)); setDashboardTotalSub(`${filtered.length} bài có insights`) }
+                if (total) { setDashboardTotalInteractions(String(total)); setDashboardTotalSub(`${filtered.length} bài có insights`) } else { setDashboardTotalInteractions('—'); setDashboardTotalSub('chờ Graph insights') }
+                if (total && totalUnique) { setDashboardEngagementRate(`${((total/totalUnique)*100).toFixed(1)}%`) } else { setDashboardEngagementRate('—') }
+              } else {
+                setDashboardTotalInteractions('—'); setDashboardTotalSub('chờ Graph insights'); setDashboardEngagementRate('—')
               }
             }
           }
@@ -1020,7 +1027,7 @@ function App() {
           <StatCard icon={FileText} iconClass="purple" label="Bài viết tháng này" value={String(dashboardPostsThisMonth)} delta="" sub="từ Kho nội dung"/>
           <StatCard icon={Send} iconClass="green" label="Đã đăng thành công" value={String(dashboardPublished)} delta="" sub={`${dashboardScheduled} bài đang chờ`}/>
           <StatCard icon={Heart} iconClass="orange" label="Tổng tương tác" value={String(dashboardTotalInteractions)} delta="" sub={dashboardTotalSub}/>
-          <StatCard icon={TrendingUp} iconClass="blue" label="Tỷ lệ tương tác" value="—" delta="" sub="chờ Graph insights"/>
+          <StatCard icon={TrendingUp} iconClass="blue" label="Tỷ lệ tương tác" value={String(dashboardEngagementRate)} delta="" sub={dashboardEngagementRate==='—' ? 'chờ Graph insights' : 'trên tổng reach unique'}/>
         </section>
 
         <section className="middle-grid">

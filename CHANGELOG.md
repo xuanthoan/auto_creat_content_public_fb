@@ -1,0 +1,58 @@
+# Changelog
+
+Tất cả thay đổi đáng chú ý của FlowPost AI được ghi lại ở đây. Định dạng theo [Keep a Changelog](https://keepachangelog.com/vi/1.0.0/) và dự án tuân theo [Semantic Versioning](https://semver.org/lang/vi/).
+
+## [1be13e2] - 2026-09-05 — B1 CI + lint fixes
+### Added
+- `.github/workflows/ci.yml` — single-job CI (ubuntu-latest, Node 20, npm ci, lint, build, Rust stable + cargo check/test, Playwright E2E_MOCK 19 tests, Vite dev server, upload artifact on failure)
+### Fixed
+- `src/App.jsx` — 7 lỗi eslint (di chuyển `selectedPageId` trước `refresh`, `catch (_e) { void _e }`, disable `set-state-in-effect`), `npm run lint` pass, `npm run build` success
+
+## [d8987ba] - 2026-09-05 — A4 reschedule/cancel + A5 E2E publish/schedule mock
+### Added
+- `src/App.jsx` SchedulePage — `platformFilter` (Tất cả/3 platforms), badge `Cancelled` xám, Queue 3 nút Dời/Hủy/Xóa, Calendar dayDetail + rescheduleFor modal, `handleReschedule` → `reschedule`, `cancelItem` → `update_schedule_status Cancelled`
+- `e2e/publish.spec.ts` (4 tests) — mock `validate_facebook_token`, `list_facebook_pages`, `publish_content` (check `.exe`)
+- `e2e/schedule.spec.ts` (5 tests) — in-memory `mockContents`/`mockSchedules`, mock `create_schedule` (Approved + 5m + pageId), `reschedule`, `Cancelled`
+### Changed
+- E2E suite từ 8 lên 19 tests (ai 3, providers 6, publish 4, schedule 5) qua `E2E_MOCK=true`
+
+## [a569771] - 2026-09-05 — A3 scheduler hardening
+### Added
+- `src-tauri/src/schedule.rs` — `resolve_first_image_path` (đọc `media-index.json`, check image/mime/10MB, fallback `None`), `read_content_with_media`, helper `first_image` cho `process_due_schedules`
+- `src-tauri/src/schedule.rs` — `AtomicBool SCHEDULER_RUNNING` dedupe `start_scheduler`, hot-reload `interval_seconds` mỗi tick, `set_scheduler_config` validate `1..=3600`
+### Fixed
+- `process_due_schedules` trước luôn `publish_content(..., None)` bỏ qua ảnh — nay gửi ảnh đầu nếu có
+
+## [2ca7c30] - 2026-09-05 — A2 wiring pageId
+### Added
+- `src-tauri/src/schedule.rs` — `CreateSchedulePayload` thêm `page_id: Option<String>`, `create_schedule` resolve `pageId = pageId.trim().or(pages.first())`, giữ backward compat JSON cũ
+- `src/App.jsx` `ScheduleModal` — dropdown `PageInfo[]` từ `list_facebook_pages`, default `get_scheduler_config.selectedPageId`, gửi `pageId` + `pages:[pageId]`, validate `pageId` trống
+- `src/App.jsx` `SettingsPage` — selector `Trang mặc định cho Lịch` gọi `select_scheduler_page`, persist `schedule-config.json`
+
+## [3b6a43d] - 2026-09-05 — A1 PublishModal picker 1 ảnh đầu
+### Added
+- `src/App.jsx` `PublishModal` — picker 1 ảnh (`list_media` + `localAssetUrl`, `selectedMediaId`, `showPicker`), `handlePublish` lấy `found.path` truyền `image_path` (giữ `null` nếu không chọn), kích hoạt nhánh `facebook.rs:191` `photos` trước đó chết
+
+## [a7b622f] - 2026-09-05 — Multi-provider + API thật
+### Added
+- `src-tauri/src/providers.rs` — bỏ MVP limit, `DEFAULT_PROTOCOL`, 3 protocols `openai-completions/responses`, `anthropic-messages`, cho phép multi-provider `create`, 3 tests mới
+- `src-tauri/src/ai.rs` — routing 3 protocols (`endpoint_for_protocol`: `/chat/completions`, `/responses` với `instructions`, `/messages` với `system` + `x-api-key`), 5 tests mới (`endpoint_for_protocol`, `responses/anthropic serialization`, `parse responses/anthropic`)
+- `src/App.jsx` — enable 3 protocols dropdown, xóa Mock demo notice, subtitle cập nhật, `setMsg('Đã tạo nội dung')`
+- `e2e/providers.spec.ts` — mock hỗ trợ 3 protocols, thêm 2 tests multi-provider/anthropic
+- `.gitignore` — thêm `test-results/`, `playwright-report/`
+### Fixed
+- `cargo check` 0 warning, `cargo test` 51 passed (tăng từ 46)
+
+## [31874ad] - 2026-09-05 — E2E_MOCK mode
+### Added
+- `e2e/ai.spec.ts`, `e2e/providers.spec.ts` — `window.__TAURI_MOCK_IMPL__` qua `addInitScript`, cho phép `E2E_MOCK=true npx playwright test` không cần `tauri-driver`, `helpers/tauri.ts` + `provider.ts`
+
+## [370d1bb] - 2026-09-05 — Security key hygiene
+### Fixed
+- Xóa API key thật khỏi git working tree (vẫn tồn tại trong history `8bd6850`, cần filter-repo riêng)
+
+## [Unreleased]
+### Planned
+- B2 LICENSE/CHANGELOG/SECURITY (file này)
+- B3 history cleanup `git filter-repo` cho key cũ
+- C1 Dashboard chart nối `list_content`/`list_schedule` thật

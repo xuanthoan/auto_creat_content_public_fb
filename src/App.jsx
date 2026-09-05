@@ -215,6 +215,9 @@ function SettingsPage() {
   const [err, setErr] = useState('')
   const [showPublish, setShowPublish] = useState(false)
 
+  const [pages, setPages] = useState([])
+  const [selectedPageId, setSelectedPageId] = useState('')
+
   const refresh = async () => {
     if (!desktop) return
     try {
@@ -224,14 +227,11 @@ function SettingsPage() {
     try {
       const cfg = await invokeDesktop('get_scheduler_config')
       setSelectedPageId(cfg.selectedPageId || '')
-    } catch {}
+    } catch (_e) { void _e }
   }
 
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { refresh() }, []) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const [pages, setPages] = useState([])
-  const [selectedPageId, setSelectedPageId] = useState('')
   const [subTab, setSubTab] = useState('Providers')
   const saveFb = async () => {
     if (!fbInput.trim()) { setErr('Vui lòng nhập Facebook Token'); return }
@@ -318,9 +318,9 @@ function SettingsStatus() {
       try {
         const s = await invokeDesktop('credential_status')
         let hasAi = false
-        try { const active = await invokeDesktop('get_active_provider'); hasAi = !!active.hasApiKey } catch {}
+        try { const active = await invokeDesktop('get_active_provider'); hasAi = !!active.hasApiKey } catch (_e) { void _e }
         setStatus({ hasFacebookToken: s.hasFacebookToken, hasAiProviderKey: hasAi })
-      } catch {}
+      } catch (_e) { void _e }
     }
     load()
     const id = setInterval(load, 4000)
@@ -454,7 +454,7 @@ function ScheduleModal({ contentId, onClose, onCreated }) {
       try {
         const cfg = await invokeDesktop('get_scheduler_config')
         if (cfg.selectedPageId) setPageId(cfg.selectedPageId)
-      } catch {}
+      } catch (_e) { void _e }
       try {
         const list = await invokeDesktop('list_facebook_pages', { token: '' })
         setPageOptions(list)
@@ -462,9 +462,9 @@ function ScheduleModal({ contentId, onClose, onCreated }) {
           try {
             const cfg2 = await invokeDesktop('get_scheduler_config')
             if (!cfg2.selectedPageId) setPageId(list[0].id)
-          } catch { setPageId(list[0].id) }
+          } catch (_e2) { void _e2; setPageId(list[0].id) }
         }
-      } catch (e) { /* pages optional, will show warning in UI */ }
+      } catch (_e) { void _e }
     }
     load()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -558,7 +558,8 @@ function PublishModal({ onClose, onSuccess }) {
     } catch (e) { setErr(String(e)) }
   }
 
-  useEffect(() => { if (showPicker) loadMedia() }, [showPicker]) // eslint-disable-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
+  useEffect(() => { if (showPicker) loadMedia() }, [showPicker])
 
   const handlePublish = async () => {
     if (!pageId || !message.trim()) return

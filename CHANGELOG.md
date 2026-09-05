@@ -51,8 +51,16 @@ Tất cả thay đổi đáng chú ý của FlowPost AI được ghi lại ở �
 ### Fixed
 - Xóa API key thật khỏi git working tree (vẫn tồn tại trong history `8bd6850`, cần filter-repo riêng)
 
+## [0.3.0-alpha] - 2026-09-06
+### Added
+- `LICENSE` MIT 2026 FlowPost AI, `SECURITY.md` bảng hỗ trợ version + lưu secret qua keyring
+- `src/App.jsx` Dashboard — C1.1 local aggregation (bỏ mock `5.660`/`12.4K`), C1.2+1.3 `list_page_posts`/`get_post_insights` 6 metric, C2 tooltip 2 cột + `StatCard` tổng tương tác từ insights
+- `src/App.jsx` fix(providers) — cô lập lỗi tab `code 190`, list card `Danh sách Providers`, `activeId`/`+ Thêm Provider`
+### Changed
+- Version `0.3.0-alpha` đồng bộ `package.json`/`Cargo.toml`/`tauri.conf.json`, badge CI `branch=dev`
+- CI đã xanh `73760b8` (cargo test 51, E2E_MOCK 19) sau fix `libdbus` + `facebook mock` + `E2E dummy key`
+
 ## [Unreleased]
 ### Planned
-- B2 LICENSE/CHANGELOG/SECURITY (file này)
-- B3 history cleanup `git filter-repo` cho key cũ
-- C1 Dashboard chart nối `list_content`/`list_schedule` thật
+- C1 Dashboard `Tỷ lệ tương tác` từ insights
+- Tag `v0.3.0-alpha`

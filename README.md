@@ -40,6 +40,23 @@ Bộ cài được tạo trong `src-tauri/target/release/bundle/`. Định dạn
 
 > Tauri không cross-compile bộ cài desktop theo cách thông thường. Hãy build bản Windows trên Windows, bản macOS trên macOS và bản Linux trên Linux.
 
+## Lấy Facebook Token (5 quyền bắt buộc)
+
+Để tránh `Token không hợp lệ hoặc hết hạn (code 190)` (ví dụ `Application has been deleted` như ảnh lỗi Providers), hãy tạo **User Token dài hạn** trên Graph Explorer với đúng 5 scopes:
+
+- `pages_show_list` → `GET /me/accounts` liệt kê Trang (`facebook.rs:128` `list_facebook_pages`)
+- `pages_manage_posts` → `POST /{page_id}/feed` và `POST /{page_id}/photos` đăng bài (`facebook.rs:220` `publish_content`)
+- `pages_read_engagement` → `likes.summary(true)` và `comments.summary(true)` trong `list_page_posts`
+- `pages_read_user_content` → `message`/`created_time` trong `list_page_posts`
+- `read_insights` → `post_impressions`, `post_impressions_unique`, `post_engaged_users`, `post_clicks`, `post_reactions_by_type_total`, `post_video_views` (6 metric cho tooltip 2 cột `facebook.rs:327` `get_post_insights`)
+
+1. Mở https://developers.facebook.com/tools/explorer/ → chọn App của bạn → `User Token` → `Add a Permission` tick 5 scopes trên → `Generate Access Token` → Copy.
+2. Mở FlowPost AI → `Cài đặt` → `Kết nối` → dán vào `Nhập Facebook User/Page Access Token` → `Lưu` (lưu vào `Credential Manager` `service: vn.flowpost.desktop` key `facebook_token` + `fb_page_{id}`, không vào JSON) → `Kiểm tra` phải hiện `Token hợp lệ` (`GET /me` `facebook.rs:72`), nếu `code 190` → app đã bị xóa, tạo lại ở app khác.
+3. Bấm `Tải Trang` → backend `GET /me/accounts?fields=id,name,access_token` tự đổi User Token → Page Token và cache `fb_page_{id}` (`security.rs:14`). Frontend chỉ thấy `id/name`.
+4. Chọn `Trang mặc định cho Lịch` → Dashboard sau 4s tự gọi `list_page_posts` + `get_post_insights` 6 metric, hover `TIẾP CẬN` hiện bảng 2 cột; nếu thiếu `read_insights` thì `reach` giữ `—` (đã có fallback `App.jsx:984`).
+
+> Tip: User Token ngắn hạn 1-2h nên đổi sang dài hạn 60 ngày: `GET /oauth/access_token?grant_type=fb_exchange_token&client_id={app_id}&client_secret={app_secret}&fb_exchange_token={short_token}` — chỉ cần khi bạn có `APP_ID/SECRET` (FlowPost AI không lưu, bạn tự đổi trên Graph Explorer). Khi hết hạn (`code 190`) chỉ cần `Tải Trang` lại, không cần `APP_ID/SECRET` trong app (tránh lộ secret trên desktop).
+
 ## Lưu trữ cục bộ
 
 Rust backend tạo thư mục `media` bên trong app data directory của hệ điều hành và lưu `media-index.json` tại cùng vị trí. Mỗi file được đổi sang UUID khi sao chép để tránh trùng tên; tên gốc, loại file, dung lượng và thời điểm nhập vẫn được giữ trong index.

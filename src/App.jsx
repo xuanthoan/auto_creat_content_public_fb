@@ -73,6 +73,7 @@ function MediaLibrary() {
 function ProvidersPanel() {
   const desktop = isDesktop()
   const [providers, setProviders] = useState([])
+  const [activeId, setActiveId] = useState('')
   const [form, setForm] = useState({ id: 'custom-provider', displayName: 'Custom provider', baseUrl: 'http://localhost:20128/v1', protocol: 'openai-completions', apiKey: '', models: [] })
   const [hasApiKey, setHasApiKey] = useState(false)
   const [modelInput, setModelInput] = useState('')
@@ -87,14 +88,36 @@ function ProvidersPanel() {
       const list = await invokeDesktop('list_providers')
       setProviders(list)
       if (list.length > 0) {
-        const p = list[0]
-        setForm({ id: p.id, displayName: p.displayName || p.id, baseUrl: p.baseUrl, protocol: p.protocol, apiKey: '', models: p.models || [] })
-        setHasApiKey(!!p.hasApiKey)
+        let active = list[0]
+        try {
+          const a = await invokeDesktop('get_active_provider')
+          const found = list.find(p => p.id === a.id)
+          if (found) active = found
+        } catch (_e) { void _e }
+        setForm({ id: active.id, displayName: active.displayName || active.id, baseUrl: active.baseUrl, protocol: active.protocol, apiKey: '', models: active.models || [] })
+        setHasApiKey(!!active.hasApiKey)
         setIsEditing(true)
       } else {
         setIsEditing(false)
+        setActiveId('')
       }
     } catch (e) { setErr(String(e)) }
+  }
+
+  const selectProvider = (id) => {
+    const p = providers.find(x => x.id === id)
+    if (!p) return
+    setForm({ id: p.id, displayName: p.displayName || p.id, baseUrl: p.baseUrl, protocol: p.protocol, apiKey: '', models: p.models || [] })
+    setHasApiKey(!!p.hasApiKey)
+    setIsEditing(true)
+    setErr(''); setMsg('')
+  }
+
+  const handleAddNew = () => {
+    setForm({ id: '', displayName: '', baseUrl: 'http://localhost:20128/v1', protocol: 'openai-completions', apiKey: '', models: [] })
+    setHasApiKey(false)
+    setIsEditing(false)
+    setErr(''); setMsg('')
   }
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { load() }, []) // eslint-disable-line react-hooks/exhaustive-deps
@@ -140,6 +163,15 @@ function ProvidersPanel() {
   return <div style={{display:'flex', flexDirection:'column', gap:14}}>
     {err && <div className="error-box">{err}</div>}
     {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
+    {providers.length>0 && <div className="panel" style={{padding:12, display:'flex', flexDirection:'column', gap:8}}>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}><strong style={{fontSize:12}}>Danh sách Providers ({providers.length})</strong><button className="outline" onClick={handleAddNew} disabled={!desktop||busy} style={{height:28, fontSize:11}}><Plus size={12}/> Thêm Provider</button></div>
+      <div style={{display:'flex', flexDirection:'column', gap:6}}>
+        {providers.map(p=> <div key={p.id} onClick={()=>selectProvider(p.id)} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 10px', border: p.id===form.id ? '2px solid #6558d6' : '1px solid #e8e8ed', borderRadius:8, background: p.id===activeId ? '#f0eefc' : '#fff', cursor:'pointer'}}>
+          <div style={{display:'flex', alignItems:'center', gap:8}}><strong style={{fontSize:11}}>{p.displayName || p.id}</strong><span style={{fontSize:9, background: p.id===activeId ? '#6558d6' : '#eee', color: p.id===activeId ? '#fff' : '#666', padding:'2px 6px', borderRadius:10}}>{p.protocol}</span><span style={{width:8, height:8, borderRadius:8, background: p.hasApiKey ? '#4caf50' : '#ccc', display:'inline-block'}} title={p.hasApiKey ? 'Đã lưu API key' : 'Chưa có key'}/><span style={{fontSize:9, color:'#777'}}>{p.id}</span></div>
+          <span style={{fontSize:9, color: p.id===activeId ? '#6558d6' : '#999'}}>{p.id===activeId ? '● active' : ''} {p.id===form.id ? '● đang sửa' : ''}</span>
+        </div>)}
+      </div>
+    </div>}
     <div className="panel" style={{padding:16, display:'flex', flexDirection:'column', gap:12}}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <div style={{display:'flex', alignItems:'center', gap:8}}><strong style={{fontSize:13}}>{form.displayName || form.id || 'Custom provider'}</strong><span style={{fontSize:10, background:'#f0eefc', color:'#6558d6', padding:'2px 7px', borderRadius:10, fontWeight:700}}>Custom</span><span style={{width:8, height:8, borderRadius:8, background: hasApiKey ? '#4caf50' : '#ccc', display:'inline-block'}}/></div>
@@ -259,13 +291,13 @@ function SettingsPage() {
   return <section className="media-page">
     <div className="page-heading"><div><p>BẢO MẬT CỤC BỘ</p><h1>Cài đặt</h1><span>Token và API key được lưu trong Credential Manager / Keychain của hệ điều hành, không bao giờ lưu trong frontend hay file JSON.</span></div></div>
     {!desktop && <div className="desktop-notice"><HardDrive size={23}/><div><strong>Hãy mở bằng ứng dụng FlowPost AI Desktop</strong><span>Chức năng bảo mật chỉ hoạt động trong bản Tauri.</span></div></div>}
-    {err && <div className="error-box">{err}</div>}
-    {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
     <div style={{display:'flex', gap:8, marginBottom:14}}>
-      <button className={subTab==='Kết nối'?'primary':'outline'} onClick={()=>setSubTab('Kết nối')} style={{height:32}}><HardDrive size={14}/> Kết nối</button>
-      <button className={subTab==='Providers'?'primary':'outline'} onClick={()=>setSubTab('Providers')} style={{height:32}}><WandSparkles size={14}/> Providers</button>
+      <button className={subTab==='Kết nối'?'primary':'outline'} onClick={()=>{ setSubTab('Kết nối'); setErr(''); setMsg('') }} style={{height:32}}><HardDrive size={14}/> Kết nối</button>
+      <button className={subTab==='Providers'?'primary':'outline'} onClick={()=>{ setSubTab('Providers'); setErr(''); setMsg('') }} style={{height:32}}><WandSparkles size={14}/> Providers</button>
     </div>
     {subTab==='Kết nối' ? <div className="panel" style={{padding:20, display:'flex', flexDirection:'column', gap:18}}>
+      {err && <div className="error-box">{err}</div>}
+      {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
       <div>
         <h2 style={{fontSize:14, margin:'0 0 8px'}}>Facebook Token</h2>
         <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Dùng cho Graph API đăng bài. Token được mã hóa trong OS vault. Frontend chỉ biết trạng thái <b>{status.hasFacebookToken ? '●●●● đã lưu' : 'chưa lưu'}</b>.</p>

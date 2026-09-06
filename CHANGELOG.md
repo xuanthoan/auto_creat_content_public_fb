@@ -55,12 +55,11 @@ Tất cả thay đổi đáng chú ý của FlowPost AI được ghi lại ở �
 ### Added
 - `LICENSE` MIT 2026 FlowPost AI, `SECURITY.md` bảng hỗ trợ version + lưu secret qua keyring
 - `src/App.jsx` Dashboard — C1.1 local aggregation (bỏ mock `5.660`/`12.4K`), C1.2+1.3 `list_page_posts`/`get_post_insights` 6 metric, C2 tooltip 2 cột + `StatCard` tổng tương tác từ insights
+- `src/App.jsx` Dashboard — `Tỷ lệ tương tác` từ insights (`totalEngaged/totalUnique*100`, `5a267a9`), fallback `—` khi chưa có token
 - `src/App.jsx` fix(providers) — cô lập lỗi tab `code 190`, list card `Danh sách Providers`, `activeId`/`+ Thêm Provider`
+- `README.md` — hướng dẫn lấy Facebook Token 5 scopes (`a561ff4`) sau blockquote Tauri
 ### Changed
-- Version `0.3.0-alpha` đồng bộ `package.json`/`Cargo.toml`/`tauri.conf.json`, badge CI `branch=dev`
+- Version `0.3.0-alpha` đồng bộ `package.json`/`Cargo.toml`/`tauri.conf.json`, badge CI `branch=dev` (sẽ chuyển `main` ở R3)
 - CI đã xanh `73760b8` (cargo test 51, E2E_MOCK 19) sau fix `libdbus` + `facebook mock` + `E2E dummy key`
 
 ## [Unreleased]
-### Planned
-- C1 Dashboard `Tỷ lệ tương tác` từ insights
-- Tag `v0.3.0-alpha`

@@ -1,6 +1,6 @@
 [package]
 name = "flowpost-ai"
-version = "0.3.0-alpha"
+version = "0.3.0"
 description = "Trợ lý nội dung Facebook chạy trên máy tính"
 authors = ["FlowPost AI"]
 edition = "2021"

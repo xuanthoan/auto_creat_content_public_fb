@@ -61,5 +61,3 @@ Tất cả thay đổi đáng chú ý của FlowPost AI được ghi lại ở �
 ### Changed
 - Version `0.3.0-alpha` đồng bộ `package.json`/`Cargo.toml`/`tauri.conf.json`, badge CI `branch=dev` (sẽ chuyển `main` ở R3)
 - CI đã xanh `73760b8` (cargo test 51, E2E_MOCK 19) sau fix `libdbus` + `facebook mock` + `E2E dummy key`
-
-## [Unreleased]

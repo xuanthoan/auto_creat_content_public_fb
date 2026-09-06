@@ -51,6 +51,10 @@ Tất cả thay đổi đáng chú ý của FlowPost AI được ghi lại ở �
 ### Fixed
 - Xóa API key thật khỏi git working tree (vẫn tồn tại trong history `8bd6850`, cần filter-repo riêng)
 
+## [0.3.0] - 2026-09-06
+### Changed
+- Promote `0.3.0-alpha` → `0.3.0` stable: đồng bộ `package.json`/`Cargo.toml`/`tauri.conf.json` sang `0.3.0`, không đổi code, CI đã xanh `73760b8`+`a561ff4`
+
 ## [0.3.0-alpha] - 2026-09-06
 ### Added
 - `LICENSE` MIT 2026 FlowPost AI, `SECURITY.md` bảng hỗ trợ version + lưu secret qua keyring

@@ -164,61 +164,61 @@ function ProvidersPanel() {
     {err && <div className="error-box">{err}</div>}
     {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
     {providers.length>0 && <div className="panel" style={{padding:12, display:'flex', flexDirection:'column', gap:8}}>
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}><strong style={{fontSize:12}}>Danh sách Providers ({providers.length})</strong><button className="outline" onClick={handleAddNew} disabled={!desktop||busy} style={{height:28, fontSize:11}}><Plus size={12}/> Thêm Provider</button></div>
+      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}><strong style={{fontSize:14}}>Danh sách Providers ({providers.length})</strong><button className="outline" onClick={handleAddNew} disabled={!desktop||busy} style={{height:30, fontSize:13}}><Plus size={12}/> Thêm Provider</button></div>
       <div style={{display:'flex', flexDirection:'column', gap:6}}>
         {providers.map(p=> <div key={p.id} onClick={()=>selectProvider(p.id)} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'8px 10px', border: p.id===form.id ? '2px solid #6558d6' : '1px solid #e8e8ed', borderRadius:8, background: p.id===activeId ? '#f0eefc' : '#fff', cursor:'pointer'}}>
-          <div style={{display:'flex', alignItems:'center', gap:8}}><strong style={{fontSize:11}}>{p.displayName || p.id}</strong><span style={{fontSize:9, background: p.id===activeId ? '#6558d6' : '#eee', color: p.id===activeId ? '#fff' : '#666', padding:'2px 6px', borderRadius:10}}>{p.protocol}</span><span style={{width:8, height:8, borderRadius:8, background: p.hasApiKey ? '#4caf50' : '#ccc', display:'inline-block'}} title={p.hasApiKey ? 'Đã lưu API key' : 'Chưa có key'}/><span style={{fontSize:9, color:'#777'}}>{p.id}</span></div>
-          <span style={{fontSize:9, color: p.id===activeId ? '#6558d6' : '#999'}}>{p.id===activeId ? '● active' : ''} {p.id===form.id ? '● đang sửa' : ''}</span>
+          <div style={{display:'flex', alignItems:'center', gap:8}}><strong style={{fontSize:13}}>{p.displayName || p.id}</strong><span style={{fontSize:11, background: p.id===activeId ? '#6558d6' : '#eee', color: p.id===activeId ? '#fff' : '#666', padding:'2px 6px', borderRadius:10}}>{p.protocol}</span><span style={{width:8, height:8, borderRadius:8, background: p.hasApiKey ? '#4caf50' : '#ccc', display:'inline-block'}} title={p.hasApiKey ? 'Đã lưu API key' : 'Chưa có key'}/><span style={{fontSize:11, color:'#777'}}>{p.id}</span></div>
+          <span style={{fontSize:11, color: p.id===activeId ? '#6558d6' : '#999'}}>{p.id===activeId ? '● active' : ''} {p.id===form.id ? '● đang sửa' : ''}</span>
         </div>)}
       </div>
     </div>}
     <div className="panel" style={{padding:16, display:'flex', flexDirection:'column', gap:12}}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <div style={{display:'flex', alignItems:'center', gap:8}}><strong style={{fontSize:13}}>{form.displayName || form.id || 'Custom provider'}</strong><span style={{fontSize:10, background:'#f0eefc', color:'#6558d6', padding:'2px 7px', borderRadius:10, fontWeight:700}}>Custom</span><span style={{width:8, height:8, borderRadius:8, background: hasApiKey ? '#4caf50' : '#ccc', display:'inline-block'}}/></div>
+        <div style={{display:'flex', alignItems:'center', gap:8}}><strong style={{fontSize:14}}>{form.displayName || form.id || 'Custom provider'}</strong><span style={{fontSize:12, background:'#f0eefc', color:'#6558d6', padding:'2px 7px', borderRadius:10, fontWeight:700}}>Custom</span><span style={{width:8, height:8, borderRadius:8, background: hasApiKey ? '#4caf50' : '#ccc', display:'inline-block'}}/></div>
         <div style={{display:'flex', gap:6}}>
-          <button className="outline" onClick={()=>{ setIsEditing(!isEditing); setErr(''); setMsg('') }} disabled={!desktop || busy} style={{height:32, fontSize:11}}>{isEditing ? 'Edit' : 'Create'}</button>
-          <button className="outline" onClick={async()=>{ if(!window.confirm('Xóa provider này?')) return; try{ await invokeDesktop('delete_provider',{id:form.id}); setMsg('Đã xóa'); await load() }catch(e){setErr(String(e))} }} disabled={!desktop || busy || providers.length<=1} title={providers.length<=1 ? 'Không thể xóa provider cuối cùng' : ''} style={{height:32, fontSize:11, color: providers.length<=1 ? '#aaa' : '#b55041', borderColor: providers.length<=1 ? '#eee' : '#f6d4cd'}}>Delete</button>
+          <button className="outline" onClick={()=>{ setIsEditing(!isEditing); setErr(''); setMsg('') }} disabled={!desktop || busy} style={{height:32, fontSize:13}}>{isEditing ? 'Edit' : 'Create'}</button>
+          <button className="outline" onClick={async()=>{ if(!window.confirm('Xóa provider này?')) return; try{ await invokeDesktop('delete_provider',{id:form.id}); setMsg('Đã xóa'); await load() }catch(e){setErr(String(e))} }} disabled={!desktop || busy || providers.length<=1} title={providers.length<=1 ? 'Không thể xóa provider cuối cùng' : ''} style={{height:32, fontSize:13, color: providers.length<=1 ? '#aaa' : '#b55041', borderColor: providers.length<=1 ? '#eee' : '#f6d4cd'}}>Delete</button>
         </div>
       </div>
       <div style={{height:1, background:'#eee'}}/>
       <div style={{display:'flex', flexDirection:'column', gap:10}}>
         <div>
-          <label style={{fontSize:11, fontWeight:700}}>Provider ID</label>
-          <input value={form.id} onChange={e=>setForm(f=>({...f, id:e.target.value}))} disabled={isEditing || busy} placeholder="acme-gateway" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12, background: isEditing ? '#f9fafb' : '#fff'}}/>
-          <div style={{fontSize:10, color:'#777', marginTop:4}}>Lowercase identifier, starting with a letter, that uniquely names this provider in requests and as its credential name.</div>
+          <label style={{fontSize:13, fontWeight:700}}>Provider ID</label>
+          <input value={form.id} onChange={e=>setForm(f=>({...f, id:e.target.value}))} disabled={isEditing || busy} placeholder="acme-gateway" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:14, background: isEditing ? '#f9fafb' : '#fff'}}/>
+          <div style={{fontSize:12, color:'#777', marginTop:4}}>Lowercase identifier, starting with a letter, that uniquely names this provider in requests and as its credential name.</div>
         </div>
         <div>
-          <label style={{fontSize:11, fontWeight:700}}>Display name</label>
-          <input value={form.displayName} onChange={e=>setForm(f=>({...f, displayName:e.target.value}))} disabled={busy} placeholder="Display name" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+          <label style={{fontSize:13, fontWeight:700}}>Display name</label>
+          <input value={form.displayName} onChange={e=>setForm(f=>({...f, displayName:e.target.value}))} disabled={busy} placeholder="Display name" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:14}}/>
         </div>
         <div>
-          <label style={{fontSize:11, fontWeight:700}}>Base URL</label>
-          <input value={form.baseUrl} onChange={e=>setForm(f=>({...f, baseUrl:e.target.value}))} disabled={busy} placeholder="https://gateway.example/v1" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+          <label style={{fontSize:13, fontWeight:700}}>Base URL</label>
+          <input value={form.baseUrl} onChange={e=>setForm(f=>({...f, baseUrl:e.target.value}))} disabled={busy} placeholder="https://gateway.example/v1" style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:14}}/>
         </div>
         <div>
-          <label style={{fontSize:11, fontWeight:700}}>API protocol</label>
-          <select value={form.protocol} onChange={e=>setForm(f=>({...f, protocol:e.target.value}))} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6, fontSize:12}}>
+          <label style={{fontSize:13, fontWeight:700}}>API protocol</label>
+          <select value={form.protocol} onChange={e=>setForm(f=>({...f, protocol:e.target.value}))} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6, fontSize:14}}>
             <option value="openai-completions">openai-completions</option>
             <option value="openai-responses">openai-responses</option>
             <option value="anthropic-messages">anthropic-messages</option>
           </select>
         </div>
         <div>
-          <label style={{fontSize:11, fontWeight:700}}>API key</label>
-          <input type="password" value={form.apiKey} onChange={e=>setForm(f=>({...f, apiKey:e.target.value}))} disabled={busy} placeholder={hasApiKey ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Enter your API key'} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+          <label style={{fontSize:13, fontWeight:700}}>API key</label>
+          <input type="password" value={form.apiKey} onChange={e=>setForm(f=>({...f, apiKey:e.target.value}))} disabled={busy} placeholder={hasApiKey ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Enter your API key'} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:14}}/>
         </div>
         <div style={{height:1, background:'#eee', margin:'6px 0'}}/>
         <div>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-            <label style={{fontSize:11, fontWeight:700}}>Models</label>
-            <button className="outline" onClick={handleFetch} disabled={!desktop || busy} style={{height:28, fontSize:11}}><RefreshCw size={12}/> Fetch available models</button>
+            <label style={{fontSize:13, fontWeight:700}}>Models</label>
+            <button className="outline" onClick={handleFetch} disabled={!desktop || busy} style={{height:30, fontSize:13}}><RefreshCw size={12}/> Fetch available models</button>
           </div>
-          <div style={{border:'1px dashed #e2e1e7', borderRadius:8, padding:12, marginTop:6, textAlign:'center', fontSize:11, color:'#777', background:'#fafafa'}}>
-            {form.models.length ? <div style={{display:'flex', flexWrap:'wrap', gap:6, justifyContent:'flex-start'}}>{form.models.map(m=> <span key={m} style={{background:'#fff', border:'1px solid #e2e1e7', borderRadius:16, padding:'4px 10px', fontSize:11, display:'flex', alignItems:'center', gap:6}}>{m} <button onClick={()=>removeModel(m)} style={{border:0, background:'transparent', cursor:'pointer', padding:0}}><X size={12}/></button></span>)}</div> : 'No models will be shown in the selector. Unlisted IDs still be sent directly.'}
+          <div style={{border:'1px dashed #e2e1e7', borderRadius:8, padding:12, marginTop:6, textAlign:'center', fontSize:13, color:'#777', background:'#fafafa'}}>
+            {form.models.length ? <div style={{display:'flex', flexWrap:'wrap', gap:6, justifyContent:'flex-start'}}>{form.models.map(m=> <span key={m} style={{background:'#fff', border:'1px solid #e2e1e7', borderRadius:16, padding:'4px 10px', fontSize:13, display:'flex', alignItems:'center', gap:6}}>{m} <button onClick={()=>removeModel(m)} style={{border:0, background:'transparent', cursor:'pointer', padding:0}}><X size={12}/></button></span>)}</div> : 'No models will be shown in the selector. Unlisted IDs still be sent directly.'}
           </div>
           <div style={{display:'flex', gap:8, marginTop:8}}>
-            <input value={modelInput} onChange={e=>setModelInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){e.preventDefault(); addModel()} }} disabled={busy} placeholder="model-id, ví dụ xoay-vong-worker-web-128k" style={{flex:1, height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
-            <button className="outline" onClick={addModel} disabled={busy || !modelInput.trim()} style={{height:32, fontSize:11}}>Add model</button>
+            <input value={modelInput} onChange={e=>setModelInput(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){e.preventDefault(); addModel()} }} disabled={busy} placeholder="model-id, ví dụ xoay-vong-worker-web-128k" style={{flex:1, height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:14}}/>
+            <button className="outline" onClick={addModel} disabled={busy || !modelInput.trim()} style={{height:32, fontSize:13}}>Add model</button>
           </div>
         </div>
       </div>
@@ -299,10 +299,10 @@ function SettingsPage() {
       {err && <div className="error-box">{err}</div>}
       {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
       <div>
-        <h2 style={{fontSize:14, margin:'0 0 8px'}}>Facebook Token</h2>
-        <p style={{fontSize:11, color:'#777', margin:'0 0 10px'}}>Dùng cho Graph API đăng bài. Token được mã hóa trong OS vault. Frontend chỉ biết trạng thái <b>{status.hasFacebookToken ? '●●●● đã lưu' : 'chưa lưu'}</b>.</p>
+        <h2 style={{fontSize:15, margin:'0 0 8px'}}>Facebook Token</h2>
+        <p style={{fontSize:13, color:'#777', margin:'0 0 10px'}}>Dùng cho Graph API đăng bài. Token được mã hóa trong OS vault. Frontend chỉ biết trạng thái <b>{status.hasFacebookToken ? '●●●● đã lưu' : 'chưa lưu'}</b>.</p>
         <div style={{display:'flex', gap:8}}>
-          <input type="password" placeholder={status.hasFacebookToken ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập Facebook User/Page Access Token'} value={fbInput} onChange={e=>setFbInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:12}}/>
+          <input type="password" placeholder={status.hasFacebookToken ? 'Đã lưu ●●●● — nhập mới để ghi đè' : 'Nhập Facebook User/Page Access Token'} value={fbInput} onChange={e=>setFbInput(e.target.value)} disabled={!desktop || busy} style={{flex:1, height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', fontSize:14}}/>
           <button className="primary" onClick={saveFb} disabled={!desktop || busy} style={{height:36}}><Zap size={14}/> Lưu</button>
           <button className="outline" onClick={checkFb} disabled={!desktop || busy} style={{height:36}}><Search size={14}/> Kiểm tra</button>
           <button className="outline" onClick={loadPages} disabled={!desktop || busy} style={{height:36}}><FileText size={14}/> Tải Trang</button>
@@ -310,21 +310,21 @@ function SettingsPage() {
           <button className="outline" onClick={deleteFb} disabled={!desktop || busy || !status.hasFacebookToken} style={{height:36}}><Trash2 size={14}/> Xóa</button>
         </div>
         {pages.length > 0 && <div className="panel" style={{marginTop:10, padding:10, background:'#f9fafb'}}>
-          <div style={{fontSize:11, fontWeight:700, marginBottom:6}}>Danh sách Trang ({pages.length}) — Page Token đã cache, không hiện:</div>
-          {pages.map(p => <div key={p.id} style={{display:'flex', justifyContent:'space-between', padding:'6px 8px', background:'#fff', border:'1px solid #eee', borderRadius:6, marginBottom:4}}><span style={{fontSize:11}}><b>{p.name}</b> <span style={{color:'#777'}}>({p.id})</span></span><span style={{fontSize:10, color:'#2e7d32'}}>● token cached</span></div>)}
+          <div style={{fontSize:13, fontWeight:700, marginBottom:6}}>Danh sách Trang ({pages.length}) — Page Token đã cache, không hiện:</div>
+          {pages.map(p => <div key={p.id} style={{display:'flex', justifyContent:'space-between', padding:'6px 8px', background:'#fff', border:'1px solid #eee', borderRadius:6, marginBottom:4}}><span style={{fontSize:13}}><b>{p.name}</b> <span style={{color:'#777'}}>({p.id})</span></span><span style={{fontSize:12, color:'#2e7d32'}}>● token cached</span></div>)}
           <div style={{display:'flex', gap:8, alignItems:'center', marginTop:10}}>
-            <label style={{fontSize:11, fontWeight:700}}>Trang mặc định cho Lịch:</label>
-            <select value={selectedPageId} onChange={async e=>{ const v=e.target.value; setSelectedPageId(v); if(!v) return; try{ await invokeDesktop('select_scheduler_page', {pageId: v}); setMsg(`Đã chọn Trang mặc định ${v}`)} catch(err){ setErr(String(err)) } }} disabled={!desktop || busy} style={{flex:1, height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', fontSize:11}}>
+            <label style={{fontSize:13, fontWeight:700}}>Trang mặc định cho Lịch:</label>
+            <select value={selectedPageId} onChange={async e=>{ const v=e.target.value; setSelectedPageId(v); if(!v) return; try{ await invokeDesktop('select_scheduler_page', {pageId: v}); setMsg(`Đã chọn Trang mặc định ${v}`)} catch(err){ setErr(String(err)) } }} disabled={!desktop || busy} style={{flex:1, height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', fontSize:13}}>
               <option value="">-- Chưa chọn --</option>
               {pages.map(p=> <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
             </select>
-            {selectedPageId && <span style={{fontSize:10, color:'#2e7d32'}}>● đã lưu {selectedPageId}</span>}
+            {selectedPageId && <span style={{fontSize:12, color:'#2e7d32'}}>● đã lưu {selectedPageId}</span>}
           </div>
-          {!desktop && <div style={{fontSize:10, color:'#777', marginTop:4}}>Chọn Trang mặc định chỉ hoạt động trong Tauri Desktop</div>}
+          {!desktop && <div style={{fontSize:12, color:'#777', marginTop:4}}>Chọn Trang mặc định chỉ hoạt động trong Tauri Desktop</div>}
         </div>}
       </div>
       <div style={{height:1, background:'#eee'}}/>
-      <div style={{background:'#f7f6fe', border:'1px solid #eceafa', borderRadius:8, padding:12, fontSize:11, color:'#5e58a6'}}>
+      <div style={{background:'#f7f6fe', border:'1px solid #eceafa', borderRadius:8, padding:12, fontSize:13, color:'#5e58a6'}}>
         <strong style={{display:'flex', alignItems:'center', gap:6}}><HardDrive size={14}/> Lưu trữ: </strong>
         <span>Windows Credential Manager / macOS Keychain / Linux Secret Service — fallback file <code>secure-credentials.json</code> trong AppData (atomic write). Không bao giờ ghi vào <code>media-index.json</code> hay localStorage.</span>
       </div>
@@ -412,19 +412,19 @@ function AiContentPage() {
     {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e'}}><CircleCheck size={18}/><span>{msg}</span></div>}
     <div className="panel" style={{padding:20, display:'flex', flexDirection:'column', gap:16}}>
       <div>
-        <label style={{fontSize:12, fontWeight:700}}>Prompt *</label>
-        <textarea placeholder="VD: Bí quyết năng lượng buổi sáng cho dân văn phòng..." value={prompt} onChange={e=>setPrompt(e.target.value)} maxLength={500} disabled={!desktop || busy} style={{width:'100%', minHeight:90, border:'1px solid #e2e1e7', borderRadius:8, padding:12, fontSize:12, marginTop:6, resize:'vertical'}}/>
-        <div style={{fontSize:10, color:'#999', textAlign:'right'}}>{prompt.length}/500</div>
+        <label style={{fontSize:14, fontWeight:700}}>Prompt *</label>
+        <textarea placeholder="VD: Bí quyết năng lượng buổi sáng cho dân văn phòng..." value={prompt} onChange={e=>setPrompt(e.target.value)} maxLength={500} disabled={!desktop || busy} style={{width:'100%', minHeight:90, border:'1px solid #e2e1e7', borderRadius:8, padding:12, fontSize:14, marginTop:6, resize:'vertical'}}/>
+        <div style={{fontSize:12, color:'#999', textAlign:'right'}}>{prompt.length}/500</div>
       </div>
       <div style={{display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12}}>
         <div>
-          <label style={{fontSize:12, fontWeight:700}}>Style</label>
+          <label style={{fontSize:14, fontWeight:700}}>Style</label>
           <select value={style} onChange={e=>setStyle(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
             <option>Viral</option><option>Motivational</option><option>Story</option><option>Custom</option>
           </select>
         </div>
         <div>
-          <label style={{fontSize:12, fontWeight:700}}>Độ dài</label>
+          <label style={{fontSize:14, fontWeight:700}}>Độ dài</label>
           <select value={length} onChange={e=>setLength(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
             <option>Ngắn</option><option>Vừa</option><option>Dài</option>
           </select>
@@ -434,25 +434,25 @@ function AiContentPage() {
         </div>
       </div>
       {style === 'Custom' && <div>
-        <label style={{fontSize:12, fontWeight:700}}>Custom style</label>
-        <input placeholder="VD: Hài hước GenZ, Trang trọng..." value={customStyle} onChange={e=>setCustomStyle(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+        <label style={{fontSize:14, fontWeight:700}}>Custom style</label>
+        <input placeholder="VD: Hài hước GenZ, Trang trọng..." value={customStyle} onChange={e=>setCustomStyle(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:14}}/>
       </div>}
       <div style={{height:1, background:'#eee'}}/>
       <div>
-        <label style={{fontSize:12, fontWeight:700}}>Tiêu đề</label>
-        <input placeholder="Tiêu đề sẽ hiện sau khi Tạo..." value={title} onChange={e=>setTitle(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:12}}/>
+        <label style={{fontSize:14, fontWeight:700}}>Tiêu đề</label>
+        <input placeholder="Tiêu đề sẽ hiện sau khi Tạo..." value={title} onChange={e=>setTitle(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 12px', marginTop:6, fontSize:14}}/>
       </div>
       <div>
-        <label style={{fontSize:12, fontWeight:700}}>Nội dung</label>
-        <textarea placeholder="Nội dung sẽ hiện sau khi Tạo — bạn có thể chỉnh sửa..." value={body} onChange={e=>setBody(e.target.value)} disabled={busy} style={{width:'100%', minHeight:160, border:'1px solid #e2e1e7', borderRadius:8, padding:12, marginTop:6, fontSize:12, resize:'vertical'}}/>
+        <label style={{fontSize:14, fontWeight:700}}>Nội dung</label>
+        <textarea placeholder="Nội dung sẽ hiện sau khi Tạo — bạn có thể chỉnh sửa..." value={body} onChange={e=>setBody(e.target.value)} disabled={busy} style={{width:'100%', minHeight:160, border:'1px solid #e2e1e7', borderRadius:8, padding:12, marginTop:6, fontSize:14, resize:'vertical'}}/>
       </div>
       <div>
         <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-          <label style={{fontSize:12, fontWeight:700}}>Gắn media ({mediaIds.length})</label>
+          <label style={{fontSize:14, fontWeight:700}}>Gắn media ({mediaIds.length})</label>
           <button className="outline" onClick={()=>setShowPicker(!showPicker)} disabled={!desktop} style={{height:32}}><Images size={14}/> {showPicker ? 'Ẩn' : 'Chọn'} media</button>
         </div>
-        {showPicker && <div className="media-grid" style={{marginTop:10, gridTemplateColumns:'repeat(3,1fr)'}}>{mediaOptions.length ? mediaOptions.map(m => <article key={m.id} className="media-card" style={{border: mediaIds.includes(m.id) ? '2px solid #6558d6' : '1px solid #e8e8ed', cursor:'pointer'}} onClick={()=>toggleMedia(m.id)}><div className="media-preview" style={{aspectRatio:1}}>{m.mediaType==='image'?<img src={m.url} alt={m.name}/>:<><video src={m.url}/><div className="video-badge"><Film size={12}/> VIDEO</div></>}</div><div className="media-info" style={{padding:8}}><strong style={{fontSize:11}}>{m.name}</strong><span style={{fontSize:10}}>{mediaIds.includes(m.id) ? '✓ Đã chọn' : m.extension.toUpperCase()}</span></div></article>) : <span style={{fontSize:11, color:'#777'}}>Thư viện trống — hãy nhập media trước</span>}</div>}
-        {mediaIds.length>0 && <div style={{fontSize:11, color:'#6558d6', marginTop:6}}>Đã chọn {mediaIds.length} media</div>}
+        {showPicker && <div className="media-grid" style={{marginTop:10, gridTemplateColumns:'repeat(3,1fr)'}}>{mediaOptions.length ? mediaOptions.map(m => <article key={m.id} className="media-card" style={{border: mediaIds.includes(m.id) ? '2px solid #6558d6' : '1px solid #e8e8ed', cursor:'pointer'}} onClick={()=>toggleMedia(m.id)}><div className="media-preview" style={{aspectRatio:1}}>{m.mediaType==='image'?<img src={m.url} alt={m.name}/>:<><video src={m.url}/><div className="video-badge"><Film size={12}/> VIDEO</div></>}</div><div className="media-info" style={{padding:8}}><strong style={{fontSize:13}}>{m.name}</strong><span style={{fontSize:12}}>{mediaIds.includes(m.id) ? '✓ Đã chọn' : m.extension.toUpperCase()}</span></div></article>) : <span style={{fontSize:13, color:'#777'}}>Thư viện trống — hãy nhập media trước</span>}</div>}
+        {mediaIds.length>0 && <div style={{fontSize:13, color:'#6558d6', marginTop:6}}>Đã chọn {mediaIds.length} media</div>}
       </div>
       <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
         <button className="outline" onClick={()=>{setPrompt(''); setTitle(''); setBody(''); setMediaIds([]); setMsg(''); setErr('')}} disabled={busy} style={{height:36}}>Xóa form</button>
@@ -523,26 +523,26 @@ function ScheduleModal({ contentId, onClose, onCreated }) {
 
   return <div style={{position:'fixed', inset:0, background:'#0006', display:'grid', placeItems:'center', zIndex:50}} onClick={onClose}>
     <div className="panel" style={{width:420, padding:18, display:'flex', flexDirection:'column', gap:12}} onClick={e=>e.stopPropagation()}>
-      <h2 style={{margin:0, fontSize:16}}>Lên lịch đăng</h2>
+      <h2 style={{margin:0, fontSize:17}}>Lên lịch đăng</h2>
       <div>
-        <label style={{fontSize:12, fontWeight:700}}>Thời gian</label>
+        <label style={{fontSize:14, fontWeight:700}}>Thời gian</label>
         <input type="datetime-local" value={scheduledAt} onChange={e=>{setScheduledAt(e.target.value); setWarn('')}} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}/>
-        <div style={{fontSize:10, color:'#888', marginTop:4}}>Phải trong tương lai, tối thiểu 5 phút.</div>
+        <div style={{fontSize:12, color:'#888', marginTop:4}}>Phải trong tương lai, tối thiểu 5 phút.</div>
       </div>
       <div>
-        <label style={{fontSize:12, fontWeight:700}}>Trang đích *</label>
+        <label style={{fontSize:14, fontWeight:700}}>Trang đích *</label>
         {pageOptions.length ? <select value={pageId} onChange={e=>setPageId(e.target.value)} disabled={busy} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
           <option value="">-- Chọn Trang --</option>
           {pageOptions.map(p=> <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
-        </select> : <div style={{fontSize:11, color:'#777', marginTop:6, padding:8, background:'#fafafa', borderRadius:6}}>Chưa có Trang — hãy vào Cài đặt → Kết nối → Tải Trang{!desktop && ' (chỉ Desktop)'}</div>}
-        {!desktop && <div style={{fontSize:10, color:'#777', marginTop:4}}>Chọn Trang chỉ hoạt động trong Tauri Desktop</div>}
+        </select> : <div style={{fontSize:13, color:'#777', marginTop:6, padding:8, background:'#fafafa', borderRadius:6}}>Chưa có Trang — hãy vào Cài đặt → Kết nối → Tải Trang{!desktop && ' (chỉ Desktop)'}</div>}
+        {!desktop && <div style={{fontSize:12, color:'#777', marginTop:4}}>Chọn Trang chỉ hoạt động trong Tauri Desktop</div>}
       </div>
       <div>
-        <label style={{fontSize:12, fontWeight:700}}>Nền tảng (label hiển thị)</label>
+        <label style={{fontSize:14, fontWeight:700}}>Nền tảng (label hiển thị)</label>
         <select value={platform} onChange={e=>setPlatform(e.target.value)} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', marginTop:6}}>
           <option>Sống Tích Cực</option><option>Daily Motivation</option><option>Chill Mỗi Ngày</option>
         </select>
-        <div style={{fontSize:10, color:'#777', marginTop:4}}>Dùng để lọc Calendar, không ảnh hưởng Page ID đăng bài.</div>
+        <div style={{fontSize:12, color:'#777', marginTop:4}}>Dùng để lọc Calendar, không ảnh hưởng Page ID đăng bài.</div>
       </div>
       {warn && <div className="error-box" style={{background:'#fff3cd', borderColor:'#ffc107', color:'#664d03'}}>{warn}<div style={{marginTop:8, display:'flex', gap:8}}><button className="outline" onClick={()=>setWarn('')} style={{height:30}}>Hủy</button><button className="primary" onClick={()=>handleSchedule(true)} style={{height:30}}>Vẫn đăng trùng</button></div></div>}
       {err && <div className="error-box">{err}</div>}
@@ -604,28 +604,28 @@ function PublishModal({ onClose, onSuccess }) {
   return (
     <div style={{position:'fixed', inset:0, background:'#0008', display:'grid', placeItems:'center', zIndex:60}} onClick={onClose}>
       <div className="panel" style={{width:440, padding:24, display:'flex', flexDirection:'column', gap:16}} onClick={e=>e.stopPropagation()}>
-        <h2 style={{margin:0, fontSize:18}}>Đăng bài ngay</h2>
-        {pages.length === 0 && <p style={{fontSize:12, color:'#666'}}>Chưa có Trang nào. Hãy bấm "Tải Trang" ở Cài đặt để tải danh sách.</p>}
+        <h2 style={{margin:0, fontSize:19}}>Đăng bài ngay</h2>
+        {pages.length === 0 && <p style={{fontSize:14, color:'#666'}}>Chưa có Trang nào. Hãy bấm "Tải Trang" ở Cài đặt để tải danh sách.</p>}
         <select value={pageId} onChange={e=>setPageId(e.target.value)} disabled={busy}>
           <option value="">-- Chọn Trang --</option>
           {pages.map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
         </select>
-        <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Nội dung bài đăng..." disabled={busy} style={{width:'100%', minHeight:100, border:'1px solid #e2e1e7', borderRadius:8, padding:12, marginTop:8, fontSize:12, resize:'vertical'}} />
+        <textarea value={message} onChange={e=>setMessage(e.target.value)} placeholder="Nội dung bài đăng..." disabled={busy} style={{width:'100%', minHeight:100, border:'1px solid #e2e1e7', borderRadius:8, padding:12, marginTop:8, fontSize:14, resize:'vertical'}} />
         <div>
           <div style={{display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:4}}>
-            <label style={{fontSize:11, fontWeight:700}}>Ảnh đính kèm (tùy chọn, 1 ảnh đầu)</label>
-            <button className="outline" onClick={()=>setShowPicker(v=>!v)} disabled={!desktop || busy} style={{height:28, fontSize:11}}><Images size={12}/> {showPicker ? 'Ẩn' : 'Chọn ảnh'}</button>
+            <label style={{fontSize:13, fontWeight:700}}>Ảnh đính kèm (tùy chọn, 1 ảnh đầu)</label>
+            <button className="outline" onClick={()=>setShowPicker(v=>!v)} disabled={!desktop || busy} style={{height:30, fontSize:13}}><Images size={12}/> {showPicker ? 'Ẩn' : 'Chọn ảnh'}</button>
           </div>
-          {!desktop && showPicker && <div style={{fontSize:10, color:'#777', marginTop:4}}>Chọn ảnh chỉ hoạt động trong bản Tauri Desktop</div>}
+          {!desktop && showPicker && <div style={{fontSize:12, color:'#777', marginTop:4}}>Chọn ảnh chỉ hoạt động trong bản Tauri Desktop</div>}
           {showPicker && <div style={{marginTop:8, maxHeight:160, overflowY:'auto', border:'1px solid #eee', borderRadius:8, padding:8, background:'#fafafa'}}>
             {mediaItems.length ? <div style={{display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6}}>
               {mediaItems.map(m => <div key={m.id} onClick={()=>setSelectedMediaId(prev=> prev===m.id ? null : m.id)} style={{border: selectedMediaId===m.id ? '2px solid #6558d6' : '1px solid #e8e8ed', borderRadius:8, overflow:'hidden', cursor:'pointer', background:'#fff'}}>
-                <div style={{aspectRatio:1, overflow:'hidden', background:'#f5f5f5', display:'grid', placeItems:'center'}}>{m.mediaType==='image' ? <img src={m.url} alt={m.name} style={{width:'100%', height:'100%', objectFit:'cover'}}/> : <><video src={m.url} style={{width:'100%', height:'100%', objectFit:'cover'}}/><div style={{fontSize:9, color:'#777'}}><Film size={10}/> VIDEO</div></>}</div>
-                <div style={{padding:4, fontSize:9, textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', background: selectedMediaId===m.id ? '#f0eefc' : '#fff', color: selectedMediaId===m.id ? '#6558d6' : '#333'}}>{selectedMediaId===m.id ? '✓ ' : ''}{m.name}</div>
+                <div style={{aspectRatio:1, overflow:'hidden', background:'#f5f5f5', display:'grid', placeItems:'center'}}>{m.mediaType==='image' ? <img src={m.url} alt={m.name} style={{width:'100%', height:'100%', objectFit:'cover'}}/> : <><video src={m.url} style={{width:'100%', height:'100%', objectFit:'cover'}}/><div style={{fontSize:11, color:'#777'}}><Film size={10}/> VIDEO</div></>}</div>
+                <div style={{padding:4, fontSize:11, textAlign:'center', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', background: selectedMediaId===m.id ? '#f0eefc' : '#fff', color: selectedMediaId===m.id ? '#6558d6' : '#333'}}>{selectedMediaId===m.id ? '✓ ' : ''}{m.name}</div>
               </div>)}
-            </div> : <span style={{fontSize:11, color:'#777'}}>Thư viện trống — hãy nhập media trước</span>}
+            </div> : <span style={{fontSize:13, color:'#777'}}>Thư viện trống — hãy nhập media trước</span>}
           </div>}
-          {selectedMediaId && <div style={{fontSize:10, color:'#6558d6', marginTop:4}}>Đã chọn 1 ảnh để đăng kèm (ảnh đầu)</div>}
+          {selectedMediaId && <div style={{fontSize:12, color:'#6558d6', marginTop:4}}>Đã chọn 1 ảnh để đăng kèm (ảnh đầu)</div>}
         </div>
         {err && <div className="error-box" style={{marginTop:8}}>{err}</div>}
         {msg && <div className="desktop-notice" style={{background:'#eef7ee', borderColor:'#cde9cd', color:'#2e6b2e', marginTop:8, padding:8}}><CircleCheck size={14}/><span>{msg}</span></div>}
@@ -685,23 +685,23 @@ function ContentWarehousePage() {
       <div><FileText size={18}/><span><b>{items.length}</b> tổng</span></div>
       <div><CircleCheck size={18}/><span><b>{items.filter(i=>i.status==='Draft').length}</b> nháp</span></div>
       <div><Zap size={18}/><span><b>{items.filter(i=>i.status==='Approved').length}</b> đã duyệt</span></div>
-      <div style={{flex:1, minWidth:160}}><Search size={14}/><input placeholder="Tìm theo tiêu đề, prompt..." value={query} onChange={e=>setQuery(e.target.value)} style={{border:0, outline:0, background:'transparent', flex:1, fontSize:12, width:'100%'}}/></div>
+      <div style={{flex:1, minWidth:160}}><Search size={14}/><input placeholder="Tìm theo tiêu đề, prompt..." value={query} onChange={e=>setQuery(e.target.value)} style={{border:0, outline:0, background:'transparent', flex:1, fontSize:14, width:'100%'}}/></div>
     </div>
     <div style={{display:'flex', gap:8, marginBottom:14}}>
-      {['Tất cả','Draft','Approved','Archived'].map(f => <button key={f} onClick={()=>setFilter(f)} className={filter===f ? 'primary' : 'outline'} style={{height:32, fontSize:12}}>{f}</button>)}
+      {['Tất cả','Draft','Approved','Archived'].map(f => <button key={f} onClick={()=>setFilter(f)} className={filter===f ? 'primary' : 'outline'} style={{height:32, fontSize:14}}>{f}</button>)}
     </div>
     {filtered.length ? <div style={{display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:14}}>{filtered.map(it => <article key={it.id} className="panel" style={{padding:14, display:'flex', flexDirection:'column', gap:8}}>
       <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
-        <span style={{fontSize:10, fontWeight:800, color: it.style==='Custom' ? '#d87642' : '#6558d6', background: it.style==='Custom' ? '#fff0e6' : '#f0eefc', padding:'3px 7px', borderRadius:10}}>{it.style}{it.customStyle ? `:${it.customStyle}` : ''}</span>
-        <span style={{fontSize:10, color: it.status==='Approved' ? '#2e7d32' : '#777', background: it.status==='Approved' ? '#e8f5e9' : '#f5f5f5', padding:'3px 7px', borderRadius:10}}>{it.status}</span>
+        <span style={{fontSize:12, fontWeight:800, color: it.style==='Custom' ? '#d87642' : '#6558d6', background: it.style==='Custom' ? '#fff0e6' : '#f0eefc', padding:'3px 7px', borderRadius:10}}>{it.style}{it.customStyle ? `:${it.customStyle}` : ''}</span>
+        <span style={{fontSize:12, color: it.status==='Approved' ? '#2e7d32' : '#777', background: it.status==='Approved' ? '#e8f5e9' : '#f5f5f5', padding:'3px 7px', borderRadius:10}}>{it.status}</span>
       </div>
-      <strong style={{fontSize:13, lineHeight:1.4}}>{it.title}</strong>
-      <span style={{fontSize:11, color:'#555', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{it.body}</span>
-      <span style={{fontSize:10, color:'#888'}}>Prompt: {it.prompt} • {formatDate(it.createdAt)} • {it.mediaIds?.length || 0} media</span>
+      <strong style={{fontSize:14, lineHeight:1.4}}>{it.title}</strong>
+      <span style={{fontSize:13, color:'#555', display:'-webkit-box', WebkitLineClamp:3, WebkitBoxOrient:'vertical', overflow:'hidden'}}>{it.body}</span>
+      <span style={{fontSize:12, color:'#888'}}>Prompt: {it.prompt} • {formatDate(it.createdAt)} • {it.mediaIds?.length || 0} media</span>
       <div style={{display:'flex', gap:8, marginTop:4, flexWrap:'wrap'}}>
-        <button className="outline" onClick={()=>approve(it.id)} disabled={it.status==='Approved' || busy} style={{height:30, fontSize:11}}><CircleCheck size={12}/> Duyệt</button>
-        <button className="primary" onClick={()=>setScheduleFor(it.id)} disabled={it.status!=='Approved' || busy} title={it.status!=='Approved' ? 'Hãy duyệt trước' : ''} style={{height:30, fontSize:11}}><CalendarDays size={12}/> Lên lịch</button>
-        <button className="outline" onClick={()=>remove(it.id)} disabled={busy} style={{height:30, fontSize:11}}><Trash2 size={12}/> Xóa</button>
+        <button className="outline" onClick={()=>approve(it.id)} disabled={it.status==='Approved' || busy} style={{height:30, fontSize:13}}><CircleCheck size={12}/> Duyệt</button>
+        <button className="primary" onClick={()=>setScheduleFor(it.id)} disabled={it.status!=='Approved' || busy} title={it.status!=='Approved' ? 'Hãy duyệt trước' : ''} style={{height:30, fontSize:13}}><CalendarDays size={12}/> Lên lịch</button>
+        <button className="outline" onClick={()=>remove(it.id)} disabled={busy} style={{height:30, fontSize:13}}><Trash2 size={12}/> Xóa</button>
       </div>
     </article>)}</div> : <div className="media-empty"><div><FileText size={34}/></div><h2>{items.length===0 ? 'Kho nội dung đang trống' : 'Không có kết quả'}</h2><p>{items.length===0 ? 'Hãy tạo nội dung ở AI Content và Lưu vào kho.' : 'Thử đổi bộ lọc hoặc từ khóa.'}</p></div>}
     {scheduleFor && <ScheduleModal contentId={scheduleFor} onClose={()=>setScheduleFor(null)} onCreated={refresh} />}
@@ -796,18 +796,18 @@ function SchedulePage() {
     <div style={{display:'flex', gap:8, marginBottom:14, flexWrap:'wrap', alignItems:'center'}}>
       <button className={tab==='Calendar'?'primary':'outline'} onClick={()=>setTab('Calendar')} style={{height:32}}><CalendarDays size={14}/> Lịch tháng</button>
       <button className={tab==='Queue'?'primary':'outline'} onClick={()=>setTab('Queue')} style={{height:32}}><Clock3 size={14}/> Hàng đợi ({filteredSchedules.length})</button>
-      <select value={platformFilter} onChange={e=>setPlatformFilter(e.target.value)} style={{height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', fontSize:12}}>
+      <select value={platformFilter} onChange={e=>setPlatformFilter(e.target.value)} style={{height:32, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px', fontSize:14}}>
         <option>Tất cả</option><option>Sống Tích Cực</option><option>Daily Motivation</option><option>Chill Mỗi Ngày</option>
       </select>
     </div>
     {tab==='Calendar' ? <>
       <div className="panel" style={{padding:14, display:'flex', justifyContent:'space-between', alignItems:'center'}}>
         <button className="outline" onClick={()=>setMonth(new Date(month.getFullYear(), month.getMonth()-1, 1))} style={{height:32}}>‹ Tháng trước</button>
-        <strong style={{fontSize:15}}>Tháng {month.getMonth()+1}/{month.getFullYear()}</strong>
+        <strong style={{fontSize:16}}>Tháng {month.getMonth()+1}/{month.getFullYear()}</strong>
         <button className="outline" onClick={()=>setMonth(new Date(month.getFullYear(), month.getMonth()+1, 1))} style={{height:32}}>Tháng sau ›</button>
       </div>
       <div className="panel" style={{padding:12, marginTop:12}}>
-        <div style={{display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:8, fontSize:11, fontWeight:700, color:'#777', marginBottom:8}}>
+        <div style={{display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:8, fontSize:13, fontWeight:700, color:'#777', marginBottom:8}}>
           <span>T2</span><span>T3</span><span>T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
         </div>
         <div style={{display:'grid', gridTemplateColumns:'repeat(7,1fr)', gap:8}}>
@@ -815,14 +815,14 @@ function SchedulePage() {
             const list = schedulesForDay(d)
             const today = isToday(d)
             return <div key={idx} className="day-cell" onClick={()=> d && list.length && setDayDetail(d)} style={{minHeight:92, border: today ? '2px solid #6558d6' : '1px solid #e9e9ee', borderRadius:10, padding:8, background: d ? (today ? '#f7f6fe' : '#fff') : '#f9f9f9', cursor: d && list.length ? 'pointer' : 'default'}}>
-               {d && <><div style={{fontSize:12, fontWeight: today ? 800 : 600, color: today ? '#6558d6' : '#333'}}>{d.getDate()}</div>
+               {d && <><div style={{fontSize:14, fontWeight: today ? 800 : 600, color: today ? '#6558d6' : '#333'}}>{d.getDate()}</div>
               <div style={{marginTop:6, display:'flex', flexDirection:'column', gap:4}}>
                 {list.slice(0,3).map(s => {
                   const c = contentMap.get(s.contentId)
-                  return <span key={s.id} style={{fontSize:9, background: s.platform==='Sống Tích Cực' ? '#efedff' : s.platform==='Daily Motivation' ? '#fff3e0' : '#e8f5e9', color:'#333', padding:'2px 6px', borderRadius:6, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{formatTime(s.scheduledAt)} {c ? c.title.slice(0,18) : s.contentId.slice(0,6)}</span>
+                  return <span key={s.id} style={{fontSize:11, background: s.platform==='Sống Tích Cực' ? '#efedff' : s.platform==='Daily Motivation' ? '#fff3e0' : '#e8f5e9', color:'#333', padding:'2px 6px', borderRadius:6, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>{formatTime(s.scheduledAt)} {c ? c.title.slice(0,18) : s.contentId.slice(0,6)}</span>
                 })}
-                {list.length>3 && <span style={{fontSize:9, color:'#777'}}>+{list.length-3} nữa</span>}
-                {list.length===0 && <span style={{fontSize:9, color:'#bbb'}}>—</span>}
+                {list.length>3 && <span style={{fontSize:11, color:'#777'}}>+{list.length-3} nữa</span>}
+                {list.length===0 && <span style={{fontSize:11, color:'#bbb'}}>—</span>}
               </div></>}
             </div>
           })}
@@ -830,19 +830,19 @@ function SchedulePage() {
       </div>
     </> : <div className="panel" style={{padding:0, overflow:'hidden'}}>
       <div style={{padding:'12px 14px', borderBottom:'1px solid #eee', display:'flex', justifyContent:'space-between'}}>
-        <strong style={{fontSize:13}}>Hàng đợi ({filteredSchedules.length})</strong><span style={{fontSize:11, color:'#777'}}>Sắp xếp theo thời gian</span>
+        <strong style={{fontSize:14}}>Hàng đợi ({filteredSchedules.length})</strong><span style={{fontSize:13, color:'#777'}}>Sắp xếp theo thời gian</span>
       </div>
       {filteredSchedules.length ? <div className="table-wrap"><table><thead><tr><th>THỜI GIAN</th><th>NỘI DUNG</th><th>TRANG</th><th>TRẠNG THÁI</th><th></th></tr></thead><tbody>{filteredSchedules.map(s => {
         const c = contentMap.get(s.contentId)
         const isScheduled = s.status === 'Scheduled'
-        return <tr key={s.id}><td>{formatFull(s.scheduledAt)}</td><td><strong style={{fontSize:12}}>{c ? c.title : s.contentId}</strong><div style={{fontSize:10, color:'#777'}}>{c ? c.prompt.slice(0,40) : ''}</div></td><td><span style={{fontSize:11, background:'#f0eefc', padding:'3px 7px', borderRadius:10}}>{s.platform}</span></td><td><span style={{fontSize:10, padding:'3px 7px', borderRadius:10, background: s.status==='Scheduled' ? '#fff3cd' : s.status==='Published' ? '#e8f5e9' : s.status==='Failed' ? '#fdecea' : '#e8e8e8', color: s.status==='Scheduled' ? '#664d03' : s.status==='Published' ? '#2e7d32' : s.status==='Cancelled' ? '#555' : '#611a15'}}>{s.status}</span></td><td><div style={{display:'flex', gap:4}}><button className="outline" onClick={()=>openReschedule(s)} disabled={!isScheduled || busy} title={isScheduled ? '' : 'Chỉ lịch Scheduled mới dời được'} style={{height:28, fontSize:10}}><CalendarDays size={11}/> Dời</button><button className="outline" onClick={()=>cancelItem(s.id)} disabled={!isScheduled || busy} title={isScheduled ? '' : 'Chỉ lịch Scheduled mới hủy được'} style={{height:28, fontSize:10}}><X size={11}/> Hủy</button><button className="outline" onClick={()=>deleteItem(s.id)} style={{height:28, fontSize:11}}><Trash2 size={12}/> Xóa</button></div></td></tr>
+        return <tr key={s.id}><td>{formatFull(s.scheduledAt)}</td><td><strong style={{fontSize:14}}>{c ? c.title : s.contentId}</strong><div style={{fontSize:12, color:'#777'}}>{c ? c.prompt.slice(0,40) : ''}</div></td><td><span style={{fontSize:13, background:'#f0eefc', padding:'3px 7px', borderRadius:10}}>{s.platform}</span></td><td><span style={{fontSize:12, padding:'3px 7px', borderRadius:10, background: s.status==='Scheduled' ? '#fff3cd' : s.status==='Published' ? '#e8f5e9' : s.status==='Failed' ? '#fdecea' : '#e8e8e8', color: s.status==='Scheduled' ? '#664d03' : s.status==='Published' ? '#2e7d32' : s.status==='Cancelled' ? '#555' : '#611a15'}}>{s.status}</span></td><td><div style={{display:'flex', gap:4}}><button className="outline" onClick={()=>openReschedule(s)} disabled={!isScheduled || busy} title={isScheduled ? '' : 'Chỉ lịch Scheduled mới dời được'} style={{height:30, fontSize:12}}><CalendarDays size={11}/> Dời</button><button className="outline" onClick={()=>cancelItem(s.id)} disabled={!isScheduled || busy} title={isScheduled ? '' : 'Chỉ lịch Scheduled mới hủy được'} style={{height:30, fontSize:12}}><X size={11}/> Hủy</button><button className="outline" onClick={()=>deleteItem(s.id)} style={{height:30, fontSize:13}}><Trash2 size={12}/> Xóa</button></div></td></tr>
       })}</tbody></table></div> : <div className="media-empty" style={{padding:30}}><div><CalendarDays size={34}/></div><h2>Chưa có lịch nào</h2><p>Hãy duyệt nội dung ở Kho và bấm Lên lịch.</p></div>}
     </div>}
       {rescheduleFor && <div style={{position:'fixed', inset:0, background:'#0006', display:'grid', placeItems:'center', zIndex:55}} onClick={()=>setRescheduleFor(null)}>
         <div className="panel" style={{width:380, padding:16, display:'flex', flexDirection:'column', gap:10}} onClick={e=>e.stopPropagation()}>
-          <h3 style={{margin:0, fontSize:14}}>Dời lịch: {rescheduleFor.platform}</h3>
+          <h3 style={{margin:0, fontSize:15}}>Dời lịch: {rescheduleFor.platform}</h3>
           <input type="datetime-local" value={rescheduleTime} onChange={e=>setRescheduleTime(e.target.value)} style={{width:'100%', height:36, border:'1px solid #e2e1e7', borderRadius:8, padding:'0 8px'}}/>
-          <div style={{fontSize:10, color:'#777'}}>Phải trong tương lai, tối thiểu 5 phút.</div>
+          <div style={{fontSize:12, color:'#777'}}>Phải trong tương lai, tối thiểu 5 phút.</div>
           {err && <div className="error-box">{err}</div>}
           <div style={{display:'flex', justifyContent:'flex-end', gap:8}}>
             <button className="outline" onClick={()=>setRescheduleFor(null)} disabled={busy} style={{height:32}}>Đóng</button>
@@ -852,8 +852,8 @@ function SchedulePage() {
       </div>}
       {dayDetail && <div style={{position:'fixed', inset:0, background:'#0006', display:'grid', placeItems:'center', zIndex:55}} onClick={()=>setDayDetail(null)}>
         <div className="panel" style={{width:360, padding:16, display:'flex', flexDirection:'column', gap:8}} onClick={e=>e.stopPropagation()}>
-          <h3 style={{margin:0, fontSize:14}}>Lịch ngày {dayDetail.toLocaleDateString('vi-VN')}</h3>
-          {schedulesForDay(dayDetail).map(s=> { const c=contentMap.get(s.contentId); return <div key={s.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 8px', background:'#fafafa', borderRadius:6, fontSize:11}}><span>{formatTime(s.scheduledAt)} {c?c.title.slice(0,20):s.contentId.slice(0,6)} <span style={{color:'#777'}}>({s.status})</span></span><span style={{display:'flex', gap:4}}><button className="outline" onClick={()=>{ setDayDetail(null); openReschedule(s) }} disabled={s.status!=='Scheduled'} style={{height:24, fontSize:9}}>Dời</button><button className="outline" onClick={()=>{ cancelItem(s.id); setDayDetail(null) }} disabled={s.status!=='Scheduled'} style={{height:24, fontSize:9}}>Hủy</button></span></div> })}
+          <h3 style={{margin:0, fontSize:15}}>Lịch ngày {dayDetail.toLocaleDateString('vi-VN')}</h3>
+          {schedulesForDay(dayDetail).map(s=> { const c=contentMap.get(s.contentId); return <div key={s.id} style={{display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 8px', background:'#fafafa', borderRadius:6, fontSize:13}}><span>{formatTime(s.scheduledAt)} {c?c.title.slice(0,20):s.contentId.slice(0,6)} <span style={{color:'#777'}}>({s.status})</span></span><span style={{display:'flex', gap:4}}><button className="outline" onClick={()=>{ setDayDetail(null); openReschedule(s) }} disabled={s.status!=='Scheduled'} style={{height:28, fontSize:11}}>Dời</button><button className="outline" onClick={()=>{ cancelItem(s.id); setDayDetail(null) }} disabled={s.status!=='Scheduled'} style={{height:28, fontSize:11}}>Hủy</button></span></div> })}
           <div style={{display:'flex', justifyContent:'flex-end'}}><button className="outline" onClick={()=>setDayDetail(null)} style={{height:32}}>Đóng</button></div>
         </div>
       </div>}
@@ -1034,14 +1034,14 @@ function App() {
           <div className="panel chart-panel">
             <div className="panel-head"><div><h2>Hiệu suất nội dung</h2><p>Lượt đăng trong 7 ngày gần nhất</p></div><select value={period} onChange={e => setPeriod(e.target.value)}><option>7 ngày qua</option><option>30 ngày qua</option></select></div>
             <div className="chart-total"><strong>{dashboardChartData.reduce((s,c)=>s+c.engagement,0)}</strong><span> bài</span></div>
-            <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={dashboardChartData.length ? dashboardChartData : [{day:'T2',posts:0,engagement:0},{day:'T3',posts:0,engagement:0},{day:'T4',posts:0,engagement:0},{day:'T5',posts:0,engagement:0},{day:'T6',posts:0,engagement:0},{day:'T7',posts:0,engagement:0},{day:'CN',posts:0,engagement:0}]} margin={{top: 8, right: 8, left: -20, bottom: 0}}><defs><linearGradient id="colorEng" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6558d6" stopOpacity={0.25}/><stop offset="95%" stopColor="#6558d6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ececf2"/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:'#8c8b98', fontSize:12}}/><YAxis axisLine={false} tickLine={false} tick={{fill:'#aaa9b3', fontSize:11}}/><Tooltip contentStyle={{border:'none', borderRadius:10, boxShadow:'0 8px 30px #2222'}}/><Area type="monotone" dataKey="engagement" stroke="#6558d6" strokeWidth={2.5} fill="url(#colorEng)"/></AreaChart></ResponsiveContainer></div>
+            <div className="chart-wrap"><ResponsiveContainer width="100%" height="100%"><AreaChart data={dashboardChartData.length ? dashboardChartData : [{day:'T2',posts:0,engagement:0},{day:'T3',posts:0,engagement:0},{day:'T4',posts:0,engagement:0},{day:'T5',posts:0,engagement:0},{day:'T6',posts:0,engagement:0},{day:'T7',posts:0,engagement:0},{day:'CN',posts:0,engagement:0}]} margin={{top: 8, right: 8, left: -20, bottom: 0}}><defs><linearGradient id="colorEng" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#6558d6" stopOpacity={0.25}/><stop offset="95%" stopColor="#6558d6" stopOpacity={0}/></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#ececf2"/><XAxis dataKey="day" axisLine={false} tickLine={false} tick={{fill:'#8c8b98', fontSize:14}}/><YAxis axisLine={false} tickLine={false} tick={{fill:'#aaa9b3', fontSize:13}}/><Tooltip contentStyle={{border:'none', borderRadius:10, boxShadow:'0 8px 30px #2222'}}/><Area type="monotone" dataKey="engagement" stroke="#6558d6" strokeWidth={2.5} fill="url(#colorEng)"/></AreaChart></ResponsiveContainer></div>
           </div>
           <DashboardSchedulePanel onViewAll={()=>setActive('Lịch nội dung')} />
         </section>
 
         <section className="panel recent">
           <div className="panel-head"><div><h2>Bài viết gần đây</h2><p>Theo dõi trạng thái và hiệu quả bài đăng</p></div><button className="text-link">Xem tất cả <span>→</span></button></div>
-          <div className="table-wrap"><table><thead><tr><th>NỘI DUNG</th><th>TRANG</th><th>THỜI GIAN</th><th>LOẠI</th><th>TRẠNG THÁI</th><th>TIẾP CẬN</th><th>TƯƠNG TÁC</th><th></th></tr></thead><tbody>{dashboardRecent.length ? dashboardRecent.map((p, i) => <tr key={p.title + i} onMouseEnter={()=>setHoveredRecent(i)} onMouseLeave={()=>setHoveredRecent(null)} style={{position:'relative'}}><td><div className="post-title"><div className={`thumb thumb${i+1}`}>{i === 0 ? '☀️' : i === 1 ? '“' : '▶'}</div><strong>{p.title}</strong></div></td><td><div className="page"><i style={{background:p.color}}>{p.initials}</i>{p.page}</div></td><td>{p.date}</td><td><span className="type">{p.type}</span></td><td><span className={p.pending ? 'status pending' : 'status success'}>{p.pending ? <Clock3 size={13}/> : <CircleCheck size={13}/>} {p.pending ? 'Đang xử lý' : p.status}</span></td><td style={{position:'relative'}}><strong>{p.reach}</strong>{hoveredRecent===i && p.tooltipData && p.tooltipData.impressions!=='—' && <div style={{position:'absolute', top:'100%', left:0, background:'#fff', border:'1px solid #e9e9ee', borderRadius:8, boxShadow:'0 8px 24px #2222', padding:10, zIndex:10, minWidth:240}}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 12px', fontSize:11}}><span style={{color:'#777'}}>Impressions</span><b>{p.tooltipData.impressions}</b><span style={{color:'#777'}}>Unique</span><b>{p.tooltipData.unique}</b><span style={{color:'#777'}}>Engaged</span><b>{p.tooltipData.engaged}</b><span style={{color:'#777'}}>Clicks</span><b>{p.tooltipData.clicks}</b><span style={{color:'#777'}}>Reactions</span><b style={{wordBreak:'break-all'}}>{p.tooltipData.reactions}</b><span style={{color:'#777'}}>VideoViews</span><b>{p.tooltipData.videoViews}</b></div></div>}</td><td style={{position:'relative'}}><div className="engage"><span><Heart size={14}/> {p.likes || '—'}</span><span><MessageCircle size={14}/> {p.comments || '—'}</span></div>{hoveredRecent===i && p.tooltipData && p.tooltipData.impressions!=='—' && <div style={{position:'absolute', top:'100%', right:0, background:'#fff', border:'1px solid #e9e9ee', borderRadius:8, boxShadow:'0 8px 24px #2222', padding:10, zIndex:10, minWidth:240}}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 12px', fontSize:11}}><span style={{color:'#777'}}>Impressions</span><b>{p.tooltipData.impressions}</b><span style={{color:'#777'}}>Unique</span><b>{p.tooltipData.unique}</b><span style={{color:'#777'}}>Engaged</span><b>{p.tooltipData.engaged}</b><span style={{color:'#777'}}>Clicks</span><b>{p.tooltipData.clicks}</b><span style={{color:'#777'}}>Reactions</span><b style={{wordBreak:'break-all'}}>{p.tooltipData.reactions}</b><span style={{color:'#777'}}>VideoViews</span><b>{p.tooltipData.videoViews}</b></div></div>}</td><td><button className="row-more" aria-label="Thao tác"><MoreHorizontal size={18}/></button></td></tr>) : <tr><td colSpan={8} style={{textAlign:'center', padding:20, color:'#777', fontSize:12}}>Chưa có bài viết — hãy tạo nội dung ở AI Content</td></tr>}</tbody></table></div>
+          <div className="table-wrap"><table><thead><tr><th>NỘI DUNG</th><th>TRANG</th><th>THỜI GIAN</th><th>LOẠI</th><th>TRẠNG THÁI</th><th>TIẾP CẬN</th><th>TƯƠNG TÁC</th><th></th></tr></thead><tbody>{dashboardRecent.length ? dashboardRecent.map((p, i) => <tr key={p.title + i} onMouseEnter={()=>setHoveredRecent(i)} onMouseLeave={()=>setHoveredRecent(null)} style={{position:'relative'}}><td><div className="post-title"><div className={`thumb thumb${i+1}`}>{i === 0 ? '☀️' : i === 1 ? '“' : '▶'}</div><strong>{p.title}</strong></div></td><td><div className="page"><i style={{background:p.color}}>{p.initials}</i>{p.page}</div></td><td>{p.date}</td><td><span className="type">{p.type}</span></td><td><span className={p.pending ? 'status pending' : 'status success'}>{p.pending ? <Clock3 size={13}/> : <CircleCheck size={13}/>} {p.pending ? 'Đang xử lý' : p.status}</span></td><td style={{position:'relative'}}><strong>{p.reach}</strong>{hoveredRecent===i && p.tooltipData && p.tooltipData.impressions!=='—' && <div style={{position:'absolute', top:'100%', left:0, background:'#fff', border:'1px solid #e9e9ee', borderRadius:8, boxShadow:'0 8px 24px #2222', padding:10, zIndex:10, minWidth:240}}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 12px', fontSize:13}}><span style={{color:'#777'}}>Impressions</span><b>{p.tooltipData.impressions}</b><span style={{color:'#777'}}>Unique</span><b>{p.tooltipData.unique}</b><span style={{color:'#777'}}>Engaged</span><b>{p.tooltipData.engaged}</b><span style={{color:'#777'}}>Clicks</span><b>{p.tooltipData.clicks}</b><span style={{color:'#777'}}>Reactions</span><b style={{wordBreak:'break-all'}}>{p.tooltipData.reactions}</b><span style={{color:'#777'}}>VideoViews</span><b>{p.tooltipData.videoViews}</b></div></div>}</td><td style={{position:'relative'}}><div className="engage"><span><Heart size={14}/> {p.likes || '—'}</span><span><MessageCircle size={14}/> {p.comments || '—'}</span></div>{hoveredRecent===i && p.tooltipData && p.tooltipData.impressions!=='—' && <div style={{position:'absolute', top:'100%', right:0, background:'#fff', border:'1px solid #e9e9ee', borderRadius:8, boxShadow:'0 8px 24px #2222', padding:10, zIndex:10, minWidth:240}}><div style={{display:'grid', gridTemplateColumns:'1fr 1fr', gap:'6px 12px', fontSize:13}}><span style={{color:'#777'}}>Impressions</span><b>{p.tooltipData.impressions}</b><span style={{color:'#777'}}>Unique</span><b>{p.tooltipData.unique}</b><span style={{color:'#777'}}>Engaged</span><b>{p.tooltipData.engaged}</b><span style={{color:'#777'}}>Clicks</span><b>{p.tooltipData.clicks}</b><span style={{color:'#777'}}>Reactions</span><b style={{wordBreak:'break-all'}}>{p.tooltipData.reactions}</b><span style={{color:'#777'}}>VideoViews</span><b>{p.tooltipData.videoViews}</b></div></div>}</td><td><button className="row-more" aria-label="Thao tác"><MoreHorizontal size={18}/></button></td></tr>) : <tr><td colSpan={8} style={{textAlign:'center', padding:20, color:'#777', fontSize:14}}>Chưa có bài viết — hãy tạo nội dung ở AI Content</td></tr>}</tbody></table></div>
         </section>
         </>}
         <footer><span>© 2026 FlowPost AI</span><span>Trạng thái hệ thống <i/> Hoạt động ổn định</span></footer>

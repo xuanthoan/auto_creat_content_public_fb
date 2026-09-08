@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { LayoutDashboard, Sparkles, Images, CalendarDays, Send, BarChart3, Settings, Search, Bell, ChevronDown, TrendingUp, FileText, Heart, MessageCircle, Plus, Clock3, CircleCheck, MoreHorizontal, WandSparkles, Zap, Upload, HardDrive, Film, Trash2, RefreshCw, X } from 'lucide-react'
+import { LayoutDashboard, Sparkles, Images, CalendarDays, Send, BarChart3, Settings, Search, Bell, TrendingUp, FileText, Heart, MessageCircle, Plus, Clock3, CircleCheck, MoreHorizontal, WandSparkles, Zap, Upload, HardDrive, Film, Trash2, RefreshCw, X } from 'lucide-react'
 import { invokeDesktop, isDesktop, localAssetUrl } from './tauri.js'
 
 function weekdayLabel(date) {
   const d = date.getDay()
   return d === 0 ? 'CN' : `T${d + 1}`
+}
+
+function getGreeting(date = new Date()) {
+  const h = date.getHours()
+  if (h >= 5 && h < 11) return 'Chào buổi sáng!👋'
+  if (h >= 11 && h < 14) return 'Chào buổi trưa!👋'
+  if (h >= 14 && h < 18) return 'Chào buổi chiều!👋'
+  return 'Chào buổi tối!👋'
 }
 
 const nav = [
@@ -1013,7 +1021,7 @@ function App() {
       <div className="sidebar-bottom">
         <button onClick={() => setActive('Cài đặt')} className={active === 'Cài đặt' ? 'active' : ''}><Settings size={19}/><span>Cài đặt</span></button>
         <SettingsStatus/>
-        <div className="profile"><div className="avatar">NA</div><div><strong>Nguyễn An</strong><span>Quản trị viên</span></div><ChevronDown size={17}/></div>
+        <div className="profile"><div className="avatar">NT</div><div><strong>Nguyễn Xuân Thoán</strong><span>Tác giả</span></div></div>
       </div>
     </aside>
 
@@ -1021,7 +1029,7 @@ function App() {
       <header><div className="search"><Search size={18}/><input aria-label="Tìm kiếm" placeholder="Tìm kiếm nội dung, bài viết..."/><kbd>⌘ K</kbd></div><div className="head-actions"><button className="bell" aria-label="Thông báo"><Bell size={20}/><i/></button><button className="primary" onClick={createPost}><Plus size={19}/> Tạo nội dung mới</button></div></header>
       <div className="content">
         {active === 'AI Content' ? <AiContentPage/> : active === 'Kho nội dung' ? <ContentWarehousePage/> : active === 'Thư viện media' ? <MediaLibrary/> : active === 'Lịch nội dung' ? <SchedulePage/> : active === 'Cài đặt' ? <SettingsPage/> : <>
-        <section className="welcome"><div><p>{today}</p><h1>Chào buổi sáng, An! <span>👋</span></h1><div className="welcome-sub">Hôm nay bạn có <b>{dashboardScheduled} bài viết</b> đang chờ được đăng.</div></div><button className="outline" onClick={()=>setActive('Lịch nội dung')}><CalendarDays size={17}/> Xem lịch nội dung</button></section>
+        <section className="welcome"><div><p>{today}</p><h1>{getGreeting()}</h1><div className="welcome-sub">Hôm nay bạn có <b>{dashboardScheduled} bài viết</b> đang chờ được đăng.</div></div><button className="outline" onClick={()=>setActive('Lịch nội dung')}><CalendarDays size={17}/> Xem lịch nội dung</button></section>
 
         <section className="stats-grid">
           <StatCard icon={FileText} iconClass="purple" label="Bài viết tháng này" value={String(dashboardPostsThisMonth)} delta="" sub="từ Kho nội dung"/>
